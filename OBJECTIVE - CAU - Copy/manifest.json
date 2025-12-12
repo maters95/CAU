@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "CAU TEST Objective Data Extraction Tool",
+  "version": "7.7.0",
+  "description": "Automates ECM folder data extraction for Transport for NSW",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "downloads",
+    "windows",
+    "alarms",
+    "offscreen",
+    "notifications",
+    "power",
+"unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://objective.transport.nsw.gov.au:8443/*",
+    "https://data.nsw.gov.au/*"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "scripts/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://objective.transport.nsw.gov.au/*"],
+      "js": ["scripts/contentScript.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "main.html",
+        "offscreen.html",
+        "reports.html",
+        "settings.html",
+        "logs.html",
+        "icons/icon48.png",
+        "styles/style.css"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Execution Logs & Data Management</title>
+    <link rel="stylesheet" href="styles/logs.css">
+    <link rel="stylesheet" href="styles/dark-mode.css">
+    <script src="./scripts/storage-init-helper.js"></script>
+</head>
+<body>
+    <div class="app">
+        <div class="card">
+            <div class="header">
+                <div class="logo-title">
+                    <img src="branding/Transport_for_NSW_logo.svg.png" alt="TfNSW" class="logo">
+                    <h1 class="header-title">Execution Logs & Data Management</h1>
+                </div>
+                <button id="backBtn" class="btn neutral">&larr; Back</button>
+            </div>
+
+            <div class="logs-page-layout">
+                <main class="logs-main-content">
+                    <section id="logs-section">
+                        <h2>Execution Logs</h2>
+                        <div class="controls">
+                            <div class="control-group">
+                                <button id="refresh-logs" class="btn primary">Refresh All</button>
+                                <button id="clear-logs" class="btn danger">Clear All Logs</button>
+                            </div>
+                            <div class="filter-container">
+                                <label for="log-level-filter">Filter by level:</label>
+                                <select id="log-level-filter">
+                                    <option value="all">All</option>
+                                    <option value="info">Info</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="error">Error</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="logs-container">
+                        </div>
+                    </section>
+                </main>
+
+                <aside class="management-sidebar">
+                    <section id="daily-fetch-section">
+                        <h2>Daily Auto-Fetch</h2>
+                        <p class="section-description">
+                            Configure the automatic daily fetch of statistics.
+                        </p>
+                        <div class="fetch-controls">
+                            <div class="toggle-switch-container">
+                                <label for="enable-daily-fetch-toggle" class="toggle-label">Enable Daily Fetch:</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="enable-daily-fetch-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div id="fetch-time-container" class="time-input-container">
+                                 <label for="daily-fetch-time">Fetch time:</label>
+                                 <input type="time" id="daily-fetch-time" class="time-input">
+                            </div>
+                            <button id="trigger-fetch-now-btn" class="btn primary">Fetch Now</button>
+                        </div>
+                        <div id="daily-fetch-status" class="status-message">Loading status...</div>
+                    </section>
+
+                    <section id="data-management-section">
+                        <h2>Data Management</h2>
+                        <div id="storage-usage-container">
+                            <h4>Storage Usage</h4>
+                            <div id="storage-usage-bar-container">
+                                <div id="storage-usage-bar"></div>
+                            </div>
+                            <p id="storage-usage-text">Loading...</p>
+                        </div>
+                        <div class="data-management-controls">
+                            <button id="archive-data-btn" class="btn secondary">Archive Data Older Than 12 Months</button>
+                            <button id="disable-backups-btn" class="btn warning">Disable Automatic Backups</button>
+                        </div>
+                        <div id="data-management-status" class="status-message"></div>
+
+                        <h3>Stored Backups</h3>
+                        <div id="backups-list-container">
+                            <ul id="backups-list">
+                            </ul>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+
+            <div class="version-badge">v7.7.0</div>
+        </div>
+    </div>
+
+    <script type="module" src="scripts/theme-toggle.js"></script>
+    <script type="module" src="scripts/logs.js"></script>
+</body>
+</html>

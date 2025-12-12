@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Reports - Objective Data Extraction Tool</title>
+  <link rel="stylesheet" href="styles/index.css">
+  <link rel="stylesheet" href="styles/dark-mode.css">
+  <script src="./scripts/storage-init-helper.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="branding">
+      <img src="branding/Transport_for_NSW_logo.svg.png" alt="Transport for NSW" />
+      <h1>Run Reports</h1>
+    </div>
+
+    <div class="controls-container">
+      <div class="dropdown-container">
+        <label for="yearDropdown">Year:</label>
+        <select id="yearDropdown">
+            <option value="" disabled selected>Loading...</option>
+        </select>
+
+        <label for="monthDropdown">Month:</label>
+        <select id="monthDropdown">
+          <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option>
+          <option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Aug</option>
+          <option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+        </select>
+      </div>
+
+      <div class="action-buttons">
+        <button id="runButton" class="btn primary">Fetch Stats</button>
+        <button id="backButton" class="btn secondary">Back</button>
+      </div>
+    </div>
+
+    <div class="select-all-container">
+      <input type="checkbox" id="selectAllCheckbox" checked>
+      <label for="selectAllCheckbox">Select All</label>
+    </div>
+
+    <div id="folderContainer">
+      <p>Loading folders...</p>
+    </div>
+
+    <div id="logOutput">
+      Select folders above and click "Fetch Stats" to begin processing.
+    </div>
+
+     <div class="version-badge">v7.7.0</div>
+  </div>
+
+  <div id="spinnerOverlay">
+    <div class="spinner-text">Fetching stats... Please wait.</div>
+    <div id="progressInfo">Preparing...</div>
+  </div>
+
+  <script type="module" src="scripts/theme-toggle.js"></script>
+  <script type="module" src="scripts/index.js"></script>
+</body>
+</html>

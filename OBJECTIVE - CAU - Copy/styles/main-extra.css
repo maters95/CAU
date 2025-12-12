@@ -1,0 +1,8 @@
+/* styles/main-extra.css - Extra styles for main.html */
+.report-button {
+  margin-top: 20px;
+  background-color: #006633 !important;
+}
+.report-button:hover {
+  background-color: #005522 !important;
+}

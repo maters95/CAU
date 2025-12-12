@@ -1,0 +1,259 @@
+/* dark-mode.css - Dark mode support for Transport for NSW Objective Data Tool */
+:root {
+  /* Light Mode Colors */
+  --light-bg: #fff;
+  --light-card-bg: #ffffff;
+  --light-text: #333;
+  --light-border: #eee;
+  --light-input-border: #ccc;
+  --light-accent: #003366;
+  --light-hover: #002244;
+  --light-highlight: #f9f9f9;
+  --light-shadow: rgba(0,0,0,0.1);
+  --light-error: #cc0000;
+  --light-success: green;
+  --light-scroll-track: #f1f1f1;
+  --light-scroll-thumb: #888;
+  --light-scroll-thumb-hover: #555;
+
+  /* Dark Mode Colors */
+  --dark-bg: #121212;
+  --dark-card-bg: #1e1e1e;
+  --dark-text: #e0e0e0;
+  --dark-border: #333;
+  --dark-input-border: #444;
+  --dark-accent: #0074d9;
+  --dark-hover: #005bb5;
+  --dark-highlight: #2a2a2a;
+  --dark-shadow: rgba(0,0,0,0.5);
+  --dark-error: #ff5252;
+  --dark-success: #4caf50;
+  --dark-scroll-track: #2a2a2a;
+  --dark-scroll-thumb: #555;
+  --dark-scroll-thumb-hover: #777;
+}
+
+/* Base theme colors - automatically uses system preferences by default */
+:root {
+  --bg: var(--light-bg);
+  --card-bg: var(--light-card-bg);
+  --text: var(--light-text);
+  --border: var(--light-border);
+  --input-border: var(--light-input-border);
+  --accent: var(--light-accent);
+  --hover: var(--light-hover);
+  --highlight: var(--light-highlight);
+  --shadow: var(--light-shadow);
+  --error: var(--light-error);
+  --success: var(--light-success);
+  --scroll-track: var(--light-scroll-track);
+  --scroll-thumb: var(--light-scroll-thumb);
+  --scroll-thumb-hover: var(--light-scroll-thumb-hover);
+}
+
+/* Dark mode when system preference is dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--dark-bg);
+    --card-bg: var(--dark-card-bg);
+    --text: var(--dark-text);
+    --border: var(--dark-border);
+    --input-border: var(--dark-input-border);
+    --accent: var(--dark-accent);
+    --hover: var(--dark-hover);
+    --highlight: var(--dark-highlight);
+    --shadow: var(--dark-shadow);
+    --error: var(--dark-error);
+    --success: var(--dark-success);
+    --scroll-track: var(--dark-scroll-track);
+    --scroll-thumb: var(--dark-scroll-thumb);
+    --scroll-thumb-hover: var(--dark-scroll-thumb-hover);
+  }
+}
+
+/* Manual class overrides for theme toggling */
+html.dark-mode {
+  --bg: var(--dark-bg);
+  --card-bg: var(--dark-card-bg);
+  --text: var(--dark-text);
+  --border: var(--dark-border);
+  --input-border: var(--dark-input-border);
+  --accent: var(--dark-accent);
+  --hover: var(--dark-hover);
+  --highlight: var(--dark-highlight);
+  --shadow: var(--dark-shadow);
+  --error: var(--dark-error);
+  --success: var(--dark-success);
+  --scroll-track: var(--dark-scroll-track);
+  --scroll-thumb: var(--dark-scroll-thumb);
+  --scroll-thumb-hover: var(--dark-scroll-thumb-hover);
+}
+
+html.light-mode {
+  --bg: var(--light-bg);
+  --card-bg: var(--light-card-bg);
+  --text: var(--light-text);
+  --border: var(--light-border);
+  --input-border: var(--light-input-border);
+  --accent: var(--light-accent);
+  --hover: var(--light-hover);
+  --highlight: var(--light-highlight);
+  --shadow: var(--light-shadow);
+  --error: var(--light-error);
+  --success: var(--light-success);
+  --scroll-track: var(--light-scroll-track);
+  --scroll-thumb: var(--light-scroll-thumb);
+  --scroll-thumb-hover: var(--light-scroll-thumb-hover);
+}
+
+/* Apply theme variables to elements */
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.container, .card, .app .card {
+  background-color: var(--card-bg);
+  box-shadow: 0 0 10px var(--shadow);
+  color: var(--text);
+}
+
+button, .btn {
+  background-color: var(--accent);
+  color: white;
+}
+
+button:hover, .btn:hover {
+  background-color: var(--hover);
+}
+
+input, select, textarea {
+  background-color: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+}
+
+/* Folder items, wrappers, and other containers */
+.folder-wrapper, .folder-item, .log-entry {
+  background-color: var(--highlight);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* Log output areas */
+#logOutput {
+  background-color: var(--highlight);
+  border-left: 4px solid var(--accent);
+  color: var(--text);
+}
+
+#logs {
+  background-color: var(--highlight);
+  border: 1px solid var(--input-border);
+}
+
+.log-entry .error {
+  color: var(--error);
+}
+
+.log-entry .success {
+  color: var(--success);
+}
+
+/* Modals and overlays */
+#spinnerOverlay, #folderTypeSelectionModal {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+#spinnerOverlay .spinner-text,
+#spinnerOverlay #progressInfo,
+#folderTypeSelectionModal .modal-content {
+  background-color: var(--card-bg);
+  color: var(--text);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+/* Dark mode toggle button */
+.theme-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background-color: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 2px 5px var(--shadow);
+  transition: background-color 0.3s;
+}
+
+.theme-toggle:hover {
+  background-color: var(--hover);
+}
+
+/* Special cases for specific elements */
+#folderContainer, .scroll-list {
+  background-color: var(--highlight);
+  border: 1px solid var(--border);
+}
+
+.folder-list-header h3 {
+  color: var(--text);
+}
+
+.filters .filter-group label {
+  color: var(--text);
+}
+
+/* Table styles for specific pages */
+table {
+  background-color: var(--card-bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+table th, table td {
+  border-color: var(--border);
+}
+
+table thead {
+  background-color: var(--highlight);
+}
+
+/* Modal content specific styles */
+.modal-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+#folderTypeChecklist {
+  background-color: var(--highlight) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}

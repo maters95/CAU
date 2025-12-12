@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Configure Folders</title>
+  <link rel="stylesheet" href="styles/settings.css">
+  <link rel="stylesheet" href="styles/dark-mode.css">
+  <script src="./scripts/storage-init-helper.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="branding">
+      <img src="branding/Transport_for_NSW_logo.svg.png" alt="Transport for NSW" />
+      <h1>Configure Folders</h1>
+    </div>
+
+    <div class="floating-back">
+      <button id="backButton" class="btn secondary">Back</button>
+    </div>
+
+    <label for="folderName">Folder Name</label>
+    <input type="text" id="folderName" placeholder="e.g. Objective Folder">
+
+    <div class="url-fields">
+      <div class="url-field">
+        <label for="folderURL1">Folder URL (Required)</label>
+        <input type="text" id="folderURL1" placeholder="https://ecm.objective/...">
+      </div>
+
+      <div class="toggle-additional-urls">
+        <button id="toggleAdditionalUrls" type="button">+ Add Additional URLs</button>
+      </div>
+
+      <div id="additionalUrlFields" style="display: none;">
+        <div class="url-field">
+          <label for="folderURL2">Additional URL (Optional)</label>
+          <input type="text" id="folderURL2" placeholder="https://ecm.objective/...">
+        </div>
+
+        <div class="url-field">
+          <label for="folderURL3">Additional URL (Optional)</label>
+          <input type="text" id="folderURL3" placeholder="https://ecm.objective/...">
+        </div>
+      </div>
+    </div>
+
+    <label for="scriptType">Script Type</label>
+    <select id="scriptType">
+      <option value="A">Script A</option>
+      <option value="B">Script B</option>
+    </select>
+
+    <label for="folderYear">Year</label>
+    <select id="folderYear">
+        <option value="" disabled selected>Loading...</option>
+    </select>
+
+    <label for="folderMonth">Month</label>
+    <select id="folderMonth">
+      <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option>
+      <option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Aug</option>
+      <option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+    </select>
+
+    <div class="button-row">
+      <button class="btn primary" id="saveFolder">Save Folder</button>
+      <button class="btn secondary" id="exportConfigBtn">Export</button>
+      <button class="btn secondary" id="importConfigBtn">Import</button>
+      <button class="btn success import-objective-btn" id="importObjectiveBtn" title="Import folders from predefined Objective URLs">Import Objective folders</button>
+
+      <div class="file-input-container">
+        <input type="file" id="importConfigInput" accept=".json">
+      </div>
+    </div>
+
+    <div class="folder-list-header">
+      <h3>Saved Folders</h3>
+      <div class="folder-filter">
+        <label for="filterYear" class="inline-label">Year:</label>
+        <select id="filterYear" class="small-select">
+            <option value="all">All</option> <option value="" disabled>Loading...</option>
+        </select>
+
+        <label for="filterMonth" class="inline-label">Month:</label>
+        <select id="filterMonth" class="small-select">
+          <option value="all">All</option>
+          <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option>
+          <option value="5">May</option><option value="6">Jun</option><option value="7">Jul</option><option value="8">Aug</option>
+          <option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="folder-list" id="folderList">
+    </div>
+
+    <div class="button-row-secondary">
+       <button class="btn danger danger-btn" id="deleteAllConfigsBtn" title="Deletes ALL saved folder configurations shown in the list above. This cannot be undone.">Delete All Configurations</button>
+    </div>
+    
+    <!-- Email Mappings Section -->
+    <div class="email-mappings-section" id="email-mappings-section">
+        <h3>Email Mappings</h3>
+        <p class="section-description">Configure email addresses for team members to enable emailing PDF reports.</p>
+        
+        <div class="email-search-container">
+            <input type="text" id="emailSearchInput" placeholder="Search name..." class="search-input">
+            <button id="addNewEmailMappingBtn" class="add-email-btn">+ Add New</button>
+        </div>
+        
+        <div id="emailMappingsList" class="email-mappings-list">
+            <div class="empty-state">No email mappings configured yet.</div>
+        </div>
+        
+        <div class="button-row-secondary email-actions">
+            <button id="exportEmailMappingsBtn" class="secondary-btn">Export Email Mappings</button>
+            <button id="importEmailMappingsBtn" class="secondary-btn">Import Email Mappings</button>
+            <input type="file" id="importEmailMappingsInput" accept=".json" class="hidden">
+        </div>
+    </div>
+
+    <!-- Email Mapping Modal Dialog -->
+    <div id="emailMappingDialog" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 id="emailMappingDialogTitle">Add Email Mapping</h3>
+                <button id="closeEmailDialogBtn" class="btn btn-sm">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="emailMappingName">Name:</label>
+                    <input type="text" id="emailMappingName" class="full-width-input" placeholder="Person's Name">
+                    <div id="nameMatchesList" class="matches-list hidden"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="emailMappingEmail">Email Address:</label>
+                    <input type="email" id="emailMappingEmail" class="full-width-input" placeholder="email@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="emailMappingCC">CC (Optional):</label>
+                    <input type="email" id="emailMappingCC" class="full-width-input" placeholder="cc@example.com">
+                    <small>For multiple addresses, separate with commas</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelEmailDialogBtn" class="btn">Cancel</button>
+                <button id="saveEmailMappingBtn" class="btn primary">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Folder Type Selection Modal -->
+    <div id="folderTypeSelectionModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>Select Folder Types to Import</h3>
+                <button id="closeFolderTypeModalBtn" class="btn btn-sm">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="folderTypeChecklist" class="folder-type-checklist">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+                <div class="modal-actions">
+                    <button id="selectAllFolderTypesBtn" class="btn secondary">Select All</button>
+                    <button id="deselectAllFolderTypesBtn" class="btn secondary">Deselect All</button>
+                </div>
+                <div id="folderTypeImportStatus" class="import-status hidden"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelFolderTypeImportBtn" class="btn">Cancel</button>
+                <button id="confirmFolderTypeImportBtn" class="btn primary">Import Selected</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="version-badge">v7.7.0</div>
+  </div>
+
+  <script type="module" src="scripts/theme-toggle.js"></script>
+  <script type="module" src="scripts/settings.js"></script>
+</body>
+</html> 

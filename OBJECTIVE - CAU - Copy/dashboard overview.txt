@@ -1,0 +1,50 @@
+Dashboard Features: A Detailed Guide
+1. KPI & Performance Tracking
+The row of cards at the top of the dashboard provides a high-level summary of performance. These cards are dynamic and update based on the main Month and Year filters you select.
+
+Total Processed: This is the straightforward sum of all items processed within the selected month, respecting all active filters (like People, Folders, and Batch Exclusions).
+
+Forecasted Total: This card projects the end-of-month total based on the team's current daily processing rate for the workdays so far. This helps you see if you're on track to meet your target.
+
+Busiest Day: This identifies the single calendar day within the selected month that had the highest processing volume. The card shows the date and the number of items processed on that day (e.g., "Monday 16th: 152").
+
+Top Performer: This card shows the name of the person who processed the most items in total during the selected month.
+
+Avg. Daily / Person: This is a powerful efficiency metric. Instead of a simple average, it's calculated by:
+
+Finding the total items processed by the team each day.
+Finding how many people contributed on that specific day.
+Calculating the average output per person for that day (Total / # of People).
+Finally, it averages these daily averages over the entire month.
+Benefit: This gives a truer measure of daily team efficiency, as it's not skewed by days when fewer people are working.
+Workday-Based Comparison:
+
+What it is: The small text below each KPI provides a comparison to a previous period. This comparison is intelligent and based on the number of workdays, not just calendar days, to ensure fairness.
+How it works: If you are viewing the current, partially completed month, it compares the performance from the workdays so far (e.g., the first 12 workdays of June) against the performance of the first 12 workdays of the previous period. This provides a true "like-for-like" comparison.
+2. Interactive Charts & Visualizations
+The charts are designed to be explored, not just viewed.
+
+Chart Type Toggling:
+
+The "Monthly Distribution" (by Folder) and "Volume Breakdown" (by Person) charts can be switched between Bar and Pie chart formats.
+How to use it: Click the "Switch to Pie" or "Switch to Bar" button in the chart's header.
+"Deep Dive" Analysis Mode:
+
+What it is: A focused view that allows you to analyze a single person or folder in detail.
+How to use it: Click on any bar or pie slice in the "Monthly Distribution" or "Volume Breakdown" charts. The dashboard will switch to a "Deep Dive" panel showing you detailed stats and a trend chart for that specific item. Click "Exit Deep Dive" to return to the main dashboard.
+Enhanced Tooltips & Consistency Score:
+
+Hovering over chart elements now reveals deeper insights.
+Volume Breakdown Chart: The tooltip shows the person's total and a Consistency Score. This score measures the stability of their daily output—a lower score indicates a more predictable, consistent workflow.
+Pie Charts: Tooltips show the item count and that item's percentage of the total workload, making it easy to understand its relative contribution.
+3. Data & Reporting
+These features make using the dashboard and sharing its findings easier.
+
+Interactive Data Tables:
+
+You can view a detailed, spreadsheet-like view of the data behind any chart.
+How to use it: Click the "Show Table" button on any chart to see the raw numbers in a simple table format.
+Compare Mode:
+
+What it is: A dedicated mode for side-by-side comparison of up to three people or folders.
+How to use it: Click the "Compare" button in the "Report Generation & Actions" area. The dashboard will switch to comparison mode. Select the items you wish to compare from the lists on the right to see their key metrics and trend lines together. Click "Exit Comparison Mode" to return to the main dashboard.

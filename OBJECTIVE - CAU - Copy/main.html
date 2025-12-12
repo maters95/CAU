@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Objective Data Collection Tool</title>
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/dark-mode.css">
+  <script src="./scripts/storage-init-helper.js"></script>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div class="logo-title">
+          <img src="branding/Transport_for_NSW_logo.svg.png" alt="TfNSW" class="logo">
+          <h1 class="header-title">Objective Data Collection Tool</h1>
+        </div>
+      </div>
+
+      <div class="button-container">
+        <button id="go-to-index" class="btn">Compile Stats</button>
+        <button id="generate-reports" class="btn">Generate Reports</button>
+        <button id="go-to-settings" class="btn">Configure Folders</button>
+        <button id="go-to-logs" class="btn">View Logs</button>
+      </div>
+
+      <div class="footer">
+        Designed by Zak Masters for Transport for NSW 2025
+      </div>
+
+      <div class="version-badge">v7.7.0</div>
+    </div>
+  </div>
+
+  <script type="module" src="scripts/theme-toggle.js"></script>
+  <script type="module" src="scripts/main.js"></script>
+</body>
+</html>

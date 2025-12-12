@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collated Reports & Dashboard</title>
+    <link rel="stylesheet" href="styles/reports.css">
+    <link rel="stylesheet" href="styles/dark-mode.css">
+
+    <script src="./scripts/storage-init-helper.js"></script>
+    <script src="./libs/pako.min.js"></script>
+    <script src="./libs/chart.umd.min.js"></script>
+    <script src="./libs/jspdf.umd.min.js"></script>
+    <script src="libs/jspdf.plugin.autotable.min.js"></script>
+    <script type="module" src="scripts/constants.js"></script>
+    <script type="module" src="scripts/storage-manager.js"></script>
+    <script type="module" src="scripts/reports.js"></script>
+    <script type="module" src="scripts/dashboard.js"></script>
+    <script type="module" src="scripts/theme-toggle.js"></script>
+    <script type="module" src="scripts/storage-sync.js"></script>
+    <script type="module" src="scripts/data-optimizer.js"></script>
+    <script type="module" src="scripts/chart-export.js"></script>
+    <script type="module" src="scripts/pdf-export.js"></script>
+    <script type="module" src="scripts/reports-export.js"></script>
+    <script type="module" src="scripts/dashboard-export.js"></script>
+    <script type="module" src="scripts/csv-parser.js"></script>
+    <script type="module" src="scripts/utils.js"></script>
+</head>
+<body>
+    <div class="app">
+        <div id="mainDashboardCard" class="card">
+            <div class="header">
+                 <div class="logo-title">
+                     <img src="branding/Transport_for_NSW_logo.svg.png" alt="TfNSW" class="logo">
+                     <h1 class="header-title">Collated Reports & Dashboard</h1>
+                 </div>
+                 <button id="backBtn" class="btn neutral">&larr; Back</button>
+             </div>
+
+            <div id="statusDiv" class="status hidden">Ready</div>
+
+            <div class="filters">
+                 <div class="filter-group month-year-group">
+                     <label for="monthSelect">Month</label>
+                     <select id="monthSelect"></select>
+                 </div>
+                 <div class="filter-group month-year-group">
+                     <label for="year-select">Year</label>
+                     <select id="year-select"><option value="" disabled selected>Loading...</option></select>
+                 </div>
+                 <div class="data-management-buttons">
+                      <div class="button-group">
+                           <button id="deleteBtn" class="btn danger btn-sm" disabled title="Delete selected data for the chosen period">Delete Selected</button>
+                           <button id="clearAllBtn" class="btn danger btn-sm" title="Delete ALL stored data">Clear All</button>
+                      </div>
+                       <div class="button-group">
+                           <button id="exportBtn" class="btn neutral btn-sm" title="Export all stored data as JSON">Export All</button>
+                           <button id="importBtn" class="btn neutral btn-sm" title="Import data from JSON backup">Import All</button>
+                           <input type="file" id="importFile" accept="application/json">
+                       </div>
+                 </div>
+                 <div class="filter-group folders-people-group">
+                     <div class="filter-group-header">
+                         <label>Folders</label>
+                         <label class="select-all"><input type="checkbox" id="selectAllFolders" checked> Select All</label>
+                     </div>
+                     <div id="folderContainer" class="scroll-list"><p class="empty">Select Year/Month</p></div>
+                 </div>
+                 <div class="filter-group folders-people-group">
+                     <div class="filter-group-header">
+                         <label>People</label>
+                         <label class="select-all"><input type="checkbox" id="selectAllPeople" checked> Select All</label>
+                     </div>
+                     <div id="peopleContainer" class="scroll-list"><p class="empty">Select Year/Month</p></div>
+                 </div>
+                <div class="filter-action-block generate-block">
+                     <h4 class="filter-action-heading">Report Generation & Actions</h4>
+                     <div class="generate-options button-group">
+                          <label for="reportFormatSelect">Format:</label>
+                          <select id="reportFormatSelect">
+                              <option value="csv">CSV</option>
+                              <option value="pdf" selected>PDF</option>
+                          </select>
+                          <button id="generateIndividualBtn" class="btn primary" disabled>Individual</button>
+                          <button id="generateTeamBtn" class="btn primary" disabled>Team</button>
+                          <button id="generateYearlyBtn" class="btn primary" disabled>Yearly Report</button>
+                          <button id="uploadQueueDataBtn" class="btn secondary" disabled title="Upload monthly queue performance CSV">Upload Queue Data</button>
+                          <input type="file" id="queueDataFile" accept=".csv">
+                          <button id="exportDashboardPdf" class="btn secondary" disabled title="Export the current dashboard view as a PDF">Export Dashboard PDF</button>
+                     </div>
+                </div>
+            </div>
+            <div id="queueDataStatusDiv" class="status hidden"></div>
+
+            <div id="kpiContainer" class="kpi-container">
+                <div class="kpi-card"><h4 title="The total number of items processed by the selected people in the selected folders for the period.">Total Processed</h4><p id="kpi-total-processed">-</p><small id="kpi-total-processed-comp" class="kpi-comparison"></small></div>
+                <div class="kpi-card"><h4 title="An estimate of the total items for the full month, based on the processing rate so far on working days.">Forecasted Total</h4><p id="kpi-forecasted-total">-</p><small id="kpi-forecast-details"></small></div>
+                <div class="kpi-card"><h4 title="The calendar day with the highest number of processed items across the entire selected team.">Busiest Day</h4><p id="kpi-busiest-day">-</p><small id="kpi-busiest-day-comp" class="kpi-comparison"></small></div>
+                <div class="kpi-card"><h4 title="The single highest daily output achieved by any individual person during the period.">Highest Daily Output</h4><p id="kpi-highest-daily-output">-</p><small id="kpi-highest-daily-output-comp" class="kpi-comparison"></small></div>
+                <div class="kpi-card"><h4 title="The person who processed the highest number of items in total for the period.">Top Performer</h4><p id="kpi-top-performer">-</p><small id="kpi-top-performer-comp" class="kpi-comparison"></small></div>
+                <div class="kpi-card"><h4 title="The average number of items processed per person, per day they were active.">Avg. Daily / Person</h4><p id="kpi-avg-daily-per-person">-</p><small id="kpi-avg-daily-per-person-comp" class="kpi-comparison"></small></div>
+            </div>
+
+            <div id="deep-dive-container" class="hidden">
+                <div class="chart-header-container">
+                    <h3 id="deep-dive-title">Deep Dive Analysis</h3>
+                    <button id="resetDrilldownBtn" class="btn btn-sm danger" title="Exit deep dive and clear filter">Exit Deep Dive</button>
+                </div>
+                <div id="deep-dive-content"></div>
+                <div class="chart-canvas-container deep-dive-chart">
+                    <canvas id="deepDiveTrendChart"></canvas>
+                </div>
+            </div>
+
+            <div id="dashboardContainer">
+                <div class="chart-container">
+                    <div class="chart-header-container">
+                        <h3 class="monthly-distribution">Monthly Distribution</h3>
+                        <button id="toggleDistChartTypeBtn" class="btn btn-sm" title="Switch chart type">Switch to Pie</button>
+                    </div>
+                    <div class="chart-with-legend-wrapper">
+                        <div class="chart-canvas-container"><canvas id="monthlyPieChart"></canvas></div>
+                        <div id="monthlyPieChart-legend" class="custom-chart-legend"></div>
+                    </div>
+                    <div class="chart-actions-container">
+                         <div class="exclude-button-wrapper"><button id="toggleDistExclusionsBtn" class="btn btn-sm secondary exclude-batches-toggle" title="Toggle exclusion of batches">Include Batches</button></div>
+                         <div class="export-button-group"><button id="togglePieTableBtn" class="btn neutral btn-sm">Show Table</button><button id="exportPieImage" class="btn neutral btn-export-chart">Export PNG</button><button id="exportPieData" class="btn neutral btn-export-chart">Export CSV</button></div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-header-container">
+                        <h3 class="volume-breakdown">Volume Breakdown</h3>
+                        <button id="toggleVolumeChartTypeBtn" class="btn btn-sm" title="Switch chart type">Switch to Pie</button>
+                    </div>
+                    <div class="chart-with-legend-wrapper">
+                        <div class="chart-canvas-container"><canvas id="volumeBarChart"></canvas></div>
+                        <div id="volumeBarChart-legend" class="custom-chart-legend"></div>
+                    </div>
+                    <div class="chart-actions-container">
+                         <div class="exclude-button-wrapper"><button id="toggleVolumeExclusionsBtn" class="btn btn-sm secondary exclude-batches-toggle" title="Toggle exclusion of batches">Include Batches</button></div>
+                         <div class="export-button-group"><button id="toggleBarTableBtn" class="btn neutral btn-sm">Show Table</button><button id="exportBarImage" class="btn neutral btn-export-chart">Export PNG</button><button id="exportBarData" class="btn neutral btn-export-chart">Export CSV</button></div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h3 class="processing-trends">Processing Trends</h3>
+                   <div class="chart-options trends-options">
+                       <div class="trend-option-group"><label for="trendsPeriodSelect">Period:</label>
+                           <select id="trendsPeriodSelect" class="small-select">
+                                <option value="this-week-daily" selected>This Week (Daily)</option>
+                               <option value="last-week-daily">Last Week (Daily)</option>
+                               <option value="mtd-daily">Month to Date (Daily)</option>
+                               <option value="mtd-weekly">Month to Date (Weekly)</option>
+                               <option value="monthly-view-daily">Daily (Selected Month)</option>
+                               <option value="monthly-view-weekly">Weekly (Selected Month)</option>
+                               <option value="3">Last 3 Months</option>
+                               <option value="6">Last 6 Months</option>
+                               <option value="12">Last 12 Months</option>
+                               <option value="custom">Custom Range</option>
+                           </select>
+                       </div>
+                       <div class="trend-option-group"><label for="trendsModeSelect">Trend By:</label><select id="trendsModeSelect" class="small-select"><option value="people" selected>People</option><option value="folders">Folders</option></select></div>
+                       <div class="trend-option-group"><label for="trendsGranularitySelect">Group By:</label><select id="trendsGranularitySelect" class="small-select"><option value="monthly" selected>Month</option><option value="weekly">Week</option><option value="daily">Day</option></select></div>
+                       <div id="customDateRangeContainer" class="custom-date-range-inputs hidden trend-option-group"><label for="trendsStartDate">Start:</label><input type="date" id="trendsStartDate" class="small-select"><label for="trendsEndDate">End:</label><input type="date" id="trendsEndDate" class="small-select"></div>
+                    </div>
+                    <div class="chart-canvas-container"><canvas id="trendsLineChart"></canvas></div>
+                    <div class="chart-actions-container trends-actions">
+                       <div class="functional-button-group"><button id="toggleTrendsTotalBtn" class="btn btn-sm" title="Toggle the display of the total line">Show Total</button><div class="exclude-button-wrapper"><button id="toggleTrendsExclusionsBtn" class="btn btn-sm secondary exclude-batches-toggle" title="Toggle exclusion of batches">Exclude Batches</button></div></div>
+                       <div class="export-button-group"><button id="toggleTrendTableBtn" class="btn neutral btn-sm">Show Table</button><button id="exportTrendImage" class="btn neutral btn-export-chart">Export PNG</button><button id="exportTrendData" class="btn neutral btn-export-chart">Export CSV</button></div>
+                   </div>
+               </div>
+            </div>
+            <div class="version-badge">v7.7.0</div>
+        </div>
+
+        <div id="tableModal" class="modal-overlay">
+            <div class="modal-container">
+                <div class="modal-header"><h3 id="tableModalTitle">Chart Data</h3><button id="closeTableModalBtn" class="btn btn-sm">&times;</button></div>
+                <div class="modal-body" id="tableModalBody"></div>
+            </div>
+        </div>
+
+        <div id="dailyReportDialog" class="modal-overlay">
+            <div class="modal-container">
+                <div class="modal-header"><h3>Select Detailed Report Options</h3><button id="closeDialogBtn" class="btn btn-sm">&times;</button></div>
+                <div class="modal-body">
+                    <p>Please select the type of detailed report you would like to generate:</p>
+                    <div class="report-option"><input type="radio" id="monthlyDailyOption" name="reportOption" value="monthlyDaily" checked><label for="monthlyDailyOption">Daily breakdown for the entire month</label></div>
+                    <div class="report-option"><input type="radio" id="weeklyDailyOption" name="reportOption" value="weeklyDaily"><label for="weeklyDailyOption">Daily breakdown for a specific week</label></div>
+                    <div class="report-option"><input type="radio" id="monthlySplitOption" name="reportOption" value="monthlySplit"><label for="monthlySplitOption">Weekly splits for the month</label></div>
+                    <div id="weekSelectionContainer" class="week-selection-container hidden">
+                        <label for="weekSelect">Select Week:</label>
+                        <select id="weekSelect" class="small-select"></select>
+                    </div>
+                    <div class="email-options-section">
+                        <div class="report-option">
+                            <input type="checkbox" id="emailReportsOption" name="emailOption" value="email">
+                            <label for="emailReportsOption">Send reports via email</label>
+                        </div>
+                        <div id="emailOptionsContainer" class="email-options-container hidden"></div>
+                        <div id="noEmailMappingWarning" class="email-warning hidden">
+                            <strong>Note:</strong> Some selected people don't have email addresses configured. 
+                            <a href="#" id="configureEmailsLink">Configure emails</a>
+                        </div>
+                    </div>
+                    <div class="report-note">
+                        <p><small>Note: Reports will be generated for each selected person with all folders included.</small></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelDialogBtn" class="btn">Cancel</button>
+                    <button id="generateDetailedReportsBtn" class="btn primary">Generate Reports</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="yearlyReportModal" class="modal-overlay">
+            <div class="modal-container yearly-report-modal">
+                <div class="modal-header">
+                    <h3>Yearly Report Options</h3>
+                    <button id="closeYearlyModalBtn" class="btn btn-sm">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Select which people and folders to <strong>exclude</strong> from the yearly report:</p>
+                    <div class="yearly-modal-columns">
+                        <div class="yearly-modal-column">
+                            <div class="yearly-column-header">
+                                <h4>People</h4>
+                                <label class="select-all-toggle"><input type="checkbox" id="excludeAllPeople"> Exclude All</label>
+                            </div>
+                            <div id="yearlyPeopleList" class="yearly-checkbox-list"></div>
+                        </div>
+                        <div class="yearly-modal-column">
+                            <div class="yearly-column-header">
+                                <h4>Folders</h4>
+                                <label class="select-all-toggle"><input type="checkbox" id="excludeAllFolders"> Exclude All</label>
+                            </div>
+                            <div id="yearlyFoldersList" class="yearly-checkbox-list"></div>
+                        </div>
+                    </div>
+                    <div class="yearly-summary" id="yearlySummary"></div>
+                    <div class="yearly-options" style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="includeMonthlyBreakdowns" checked>
+                            <span>Include individual monthly breakdown pages (adds one page per person)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelYearlyBtn" class="btn">Cancel</button>
+                    <button id="generateYearlyReportBtn" class="btn primary">Generate Yearly Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
