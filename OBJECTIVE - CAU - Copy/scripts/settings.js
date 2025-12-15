@@ -887,6 +887,275 @@ document.addEventListener("DOMContentLoaded", () => {
     setupEmailMappingEventListeners();
   }
 
+  // ==================== DATA REVIEW SETTINGS ====================
+  
+  const dataReviewElements = {
+    enableToggle: document.getElementById('enableDataReviewToggle'),
+    folderExclusionList: document.getElementById('folderExclusionList'),
+    applyBtn: document.getElementById('applyDataReviewSettingsBtn'),
+    resetBtn: document.getElementById('resetDataReviewSettingsBtn')
+  };
+
+  const DATA_REVIEW_SETTINGS_KEY = 'dataReviewSettings';
+  let dataReviewSettings = {
+    enabled: true,
+    excludedFolders: []
+  };
+
+  async function loadDataReviewSettings() {
+    try {
+      const result = await browserAPI.storage.local.get(DATA_REVIEW_SETTINGS_KEY);
+      if (result[DATA_REVIEW_SETTINGS_KEY]) {
+        dataReviewSettings = result[DATA_REVIEW_SETTINGS_KEY];
+      }
+      console.log("Data Review Settings loaded:", dataReviewSettings);
+    } catch (error) {
+      console.error("Error loading data review settings:", error);
+    }
+  }
+
+  async function saveDataReviewSettings() {
+    try {
+      await browserAPI.storage.local.set({ [DATA_REVIEW_SETTINGS_KEY]: dataReviewSettings });
+      console.log("Data Review Settings saved:", dataReviewSettings);
+    } catch (error) {
+      console.error("Error saving data review settings:", error);
+    }
+  }
+
+  async function renderFolderExclusionList() {
+    if (!dataReviewElements.folderExclusionList) {
+      console.warn("Data Review: folderExclusionList element not found");
+      return;
+    }
+
+    // Get all configured folders
+    const result = await browserAPI.storage.local.get(FOLDER_CONFIG_KEY);
+    const configs = result[FOLDER_CONFIG_KEY] || [];
+    console.log("Data Review: Loaded configs:", configs.length, "configurations");
+    
+    // Extract unique folder names (strip year prefix if present)
+    const folderNames = new Set();
+    configs.forEach(config => {
+      if (config.name) {
+        // Strip year prefix (e.g., "2025 Folder Name" -> "Folder Name")
+        let folderName = config.name;
+        const yearMatch = folderName.match(/^(\d{4})\s+(.+)$/);
+        if (yearMatch && yearMatch[2]) {
+          folderName = yearMatch[2];
+        }
+        folderNames.add(folderName);
+      }
+    });
+
+    console.log("Data Review: Found unique folders:", Array.from(folderNames));
+
+    if (folderNames.size === 0) {
+      dataReviewElements.folderExclusionList.innerHTML = '<div class="empty-state">No folders configured yet.</div>';
+      console.log("Data Review: No folders found, showing empty state");
+      return;
+    }
+
+    // Sort alphabetically
+    const sortedFolders = Array.from(folderNames).sort();
+    
+    // Create checkboxes
+    const html = sortedFolders.map(folderName => {
+      const isExcluded = dataReviewSettings.excludedFolders.includes(folderName);
+      return `
+        <div class="folder-exclusion-item">
+          <label>
+            <input type="checkbox" 
+                   class="folder-exclusion-checkbox" 
+                   data-folder="${folderName}"
+                   ${isExcluded ? 'checked' : ''}>
+            ${folderName}
+          </label>
+        </div>
+      `;
+    }).join('');
+
+    dataReviewElements.folderExclusionList.innerHTML = html;
+    console.log("Data Review: Rendered", sortedFolders.length, "folder checkboxes");
+  }
+
+  function gatherExclusionSettings() {
+    const checkboxes = dataReviewElements.folderExclusionList.querySelectorAll('.folder-exclusion-checkbox');
+    const excludedFolders = [];
+    
+    checkboxes.forEach(checkbox => {
+      if (checkbox.checked) {
+        excludedFolders.push(checkbox.dataset.folder);
+      }
+    });
+
+    return {
+      enabled: dataReviewElements.enableToggle?.checked ?? true,
+      excludedFolders
+    };
+  }
+
+  function applyDataReviewSettings() {
+    dataReviewSettings = gatherExclusionSettings();
+    saveDataReviewSettings();
+    alert('Data review settings saved successfully!');
+  }
+
+  function resetDataReviewSettings() {
+    if (confirm('Reset data review settings to default? This will clear all folder exclusions.')) {
+      dataReviewSettings = {
+        enabled: true,
+        excludedFolders: []
+      };
+      saveDataReviewSettings();
+      
+      // Update UI
+      if (dataReviewElements.enableToggle) {
+        dataReviewElements.enableToggle.checked = true;
+      }
+      renderFolderExclusionList();
+      
+      alert('Data review settings reset to default!');
+    }
+  }
+
+  async function initializeDataReviewSettings() {
+    await loadDataReviewSettings();
+    
+    // Set toggle state
+    if (dataReviewElements.enableToggle) {
+      dataReviewElements.enableToggle.checked = dataReviewSettings.enabled;
+    }
+    
+    // Render folder list
+    await renderFolderExclusionList();
+    
+    // Setup event listeners
+    if (dataReviewElements.applyBtn) {
+      dataReviewElements.applyBtn.addEventListener('click', applyDataReviewSettings);
+    }
+    
+    if (dataReviewElements.resetBtn) {
+      dataReviewElements.resetBtn.addEventListener('click', resetDataReviewSettings);
+    }
+  }
+
+  // ==================== END DATA REVIEW SETTINGS ====================
+
+  // ==================== FORCE SINGLE COUNT SETTINGS ====================
+  const forceSingleCountElements = {
+    container: document.getElementById('forceSingleCountContainer'),
+    list: document.getElementById('forceSingleCountList'),
+    applyBtn: document.getElementById('applyForceSingleCountBtn'),
+    clearBtn: document.getElementById('clearForceSingleCountBtn')
+  };
+
+  const FORCE_SINGLE_COUNT_KEY = 'forceSingleCountFolders';
+  let forceSingleCountFolders = [];
+
+  async function loadForceSingleCountSettings() {
+    try {
+      const result = await browserAPI.storage.local.get([FORCE_SINGLE_COUNT_KEY]);
+      if (result[FORCE_SINGLE_COUNT_KEY]) {
+        forceSingleCountFolders = result[FORCE_SINGLE_COUNT_KEY];
+      }
+      console.log("Force Single Count Settings loaded:", forceSingleCountFolders);
+    } catch (e) {
+      console.error("Error loading force single count settings:", e);
+    }
+  }
+
+  async function saveForceSingleCountSettings() {
+    try {
+      await browserAPI.storage.local.set({ [FORCE_SINGLE_COUNT_KEY]: forceSingleCountFolders });
+      console.log("Force Single Count Settings saved:", forceSingleCountFolders);
+    } catch (e) {
+      console.error("Error saving force single count settings:", e);
+    }
+  }
+
+  async function renderForceSingleCountList() {
+    if (!forceSingleCountElements.list) return;
+    
+    // Get all unique folder names from configurations
+    const result = await browserAPI.storage.local.get([FOLDER_CONFIG_KEY]);
+    const configs = result[FOLDER_CONFIG_KEY] || [];
+    
+    const folderNames = new Set();
+    configs.forEach(config => {
+      // Only include Script B folders
+      if (config.script !== 'B') return;
+      
+      let folderName = config.name;
+      // Strip year prefix if present
+      const yearMatch = folderName.match(/^(\d{4})\s+(.+)$/);
+      if (yearMatch) {
+        folderName = yearMatch[2];
+      }
+      folderNames.add(folderName);
+    });
+    
+    console.log("Force Single Count: Found Script B folders:", Array.from(folderNames));
+    
+    if (folderNames.size === 0) {
+      forceSingleCountElements.list.innerHTML = '<div class="empty-state">No Script B folders configured yet.</div>';
+      return;
+    }
+    
+    const sortedFolders = Array.from(folderNames).sort();
+    
+    const html = sortedFolders.map(folderName => {
+      const isForced = forceSingleCountFolders.includes(folderName);
+      return `
+        <div class="exclusion-item">
+          <label>
+            <input type="checkbox" 
+                   class="force-single-checkbox" 
+                   data-folder="${folderName}"
+                   ${isForced ? 'checked' : ''}>
+            ${folderName}
+          </label>
+        </div>
+      `;
+    }).join('');
+    
+    forceSingleCountElements.list.innerHTML = html;
+  }
+
+  function gatherForceSingleCountSettings() {
+    const checkboxes = document.querySelectorAll('.force-single-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.dataset.folder);
+  }
+
+  function applyForceSingleCountSettings() {
+    forceSingleCountFolders = gatherForceSingleCountSettings();
+    saveForceSingleCountSettings();
+    alert(`Force single count settings applied! ${forceSingleCountFolders.length} folders will have counts capped to 1.`);
+  }
+
+  function clearForceSingleCountSettings() {
+    if (confirm('Clear all force single count settings?')) {
+      forceSingleCountFolders = [];
+      saveForceSingleCountSettings();
+      renderForceSingleCountList();
+      alert('Force single count settings cleared!');
+    }
+  }
+
+  async function initializeForceSingleCountSettings() {
+    await loadForceSingleCountSettings();
+    await renderForceSingleCountList();
+    
+    if (forceSingleCountElements.applyBtn) {
+      forceSingleCountElements.applyBtn.addEventListener('click', applyForceSingleCountSettings);
+    }
+    
+    if (forceSingleCountElements.clearBtn) {
+      forceSingleCountElements.clearBtn.addEventListener('click', clearForceSingleCountSettings);
+    }
+  }
+  // ==================== END FORCE SINGLE COUNT SETTINGS ====================
+
   if(deleteAllConfigsBtn) deleteAllConfigsBtn.addEventListener("click", handleDeleteAllConfigsClick);
   if(backButton) backButton.addEventListener("click", () => { window.location.href = "main.html"; });
   if(filterYearSelect) filterYearSelect.addEventListener("change", renderFolderList);
@@ -904,5 +1173,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setFilterDateDefaults();
   renderFolderList(); 
   initializeEmailMappings();
-  console.log("Settings.js: Initial load complete (v2.6).");
+  initializeDataReviewSettings();
+  initializeForceSingleCountSettings();
+  console.log("Settings.js: Initial load complete (v2.7).");
 });

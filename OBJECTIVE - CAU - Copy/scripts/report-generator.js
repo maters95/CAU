@@ -1394,7 +1394,16 @@ export async function generateObjectiveReports(selectedPersons, selectedFoldersD
  * @returns {Object} Generated reports and any errors
  */
 export async function generateYearlyReports(selectedPersons, selectedFoldersDisplayNames, options = {}) {
-    const { reportYear, includeMonthlyBreakdowns = true } = options;
+    const { 
+        reportYear, 
+        includeCoverPage = true,
+        includePerformerSummaries = true,
+        includeDailyPerformance = true,
+        includeWeeklyPerformance = true,
+        includeMonthlyPerformance = true,
+        includeTeamMonthlyTotals = true,
+        includeMonthlyBreakdowns = true 
+    } = options;
     console.log(`Yearly Report Generator: START for year ${reportYear}`);
     const errors = [];
     const reportsToProcess = [];
@@ -1478,6 +1487,12 @@ export async function generateYearlyReports(selectedPersons, selectedFoldersDisp
         highestMonthlyData: highestMonthlyData,
         reportYear: reportYear,
         isYearly: true,
+        includeCoverPage: includeCoverPage,
+        includePerformerSummaries: includePerformerSummaries,
+        includeDailyPerformance: includeDailyPerformance,
+        includeWeeklyPerformance: includeWeeklyPerformance,
+        includeMonthlyPerformance: includeMonthlyPerformance,
+        includeTeamMonthlyTotals: includeTeamMonthlyTotals,
         includeMonthlyBreakdowns: includeMonthlyBreakdowns,
         totalTeamSize: totalTeamSize,
         currentTeamMembers: personsToIterate.length

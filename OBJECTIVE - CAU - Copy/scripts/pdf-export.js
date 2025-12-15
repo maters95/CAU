@@ -61,19 +61,33 @@ class ReportGenerator {
                     throw new Error("Missing yearly report data.");
                 }
                 
+                // Get section options (default to true for backwards compatibility)
+                const includeCoverPage = reportData.includeCoverPage !== false;
+                const includePerformerSummaries = reportData.includePerformerSummaries !== false;
+                const includeDailyPerformance = reportData.includeDailyPerformance !== false;
+                const includeWeeklyPerformance = reportData.includeWeeklyPerformance !== false;
+                const includeMonthlyPerformance = reportData.includeMonthlyPerformance !== false;
+                const includeTeamMonthlyTotals = reportData.includeTeamMonthlyTotals !== false;
+                
+                let isFirstPage = true;
+                
                 // === PAGE 1: Executive Summary Cover Page ===
-                pdf.lastY = 0;
-                this._addHeader(pdf, reportData.title);
-                pdf.lastY = this.pageOptions.margins.top;
-                await this._addYearlyCoverPage(pdf, yearlyData, reportData, autoTableFunc);
+                if (includeCoverPage) {
+                    pdf.lastY = 0;
+                    this._addHeader(pdf, reportData.title);
+                    pdf.lastY = this.pageOptions.margins.top;
+                    await this._addYearlyCoverPage(pdf, yearlyData, reportData, autoTableFunc);
+                    isFirstPage = false;
+                }
                 
                 // Generate summary tables
                 // Returns: { topPerformers: { numbers, percentage }, lowerPerformers: { numbers, percentage } }
                 const summaryTables = this._prepareYearlySummaryTables(yearlyData);
                 
                 // === PAGE 2: Top Performers (Numbers + Percentage stacked) ===
-                if (summaryTables.topPerformers) {
-                    pdf.addPage();
+                if (includePerformerSummaries && summaryTables.topPerformers) {
+                    if (!isFirstPage) pdf.addPage();
+                    else isFirstPage = false;
                     pdf.lastY = 0;
                     this._addHeader(pdf, reportData.title);
                     pdf.lastY = this.pageOptions.margins.top;
@@ -81,8 +95,9 @@ class ReportGenerator {
                 }
                 
                 // === PAGE 3: Lower Performers (Numbers + Percentage stacked) ===
-                if (summaryTables.lowerPerformers) {
-                    pdf.addPage();
+                if (includePerformerSummaries && summaryTables.lowerPerformers) {
+                    if (!isFirstPage) pdf.addPage();
+                    else isFirstPage = false;
                     pdf.lastY = 0;
                     this._addHeader(pdf, reportData.title);
                     pdf.lastY = this.pageOptions.margins.top;
@@ -92,12 +107,13 @@ class ReportGenerator {
                 const yearLabel = reportData.reportYear || reportData.yearlyData?.year || 'Year';
                 
                 // === PAGES 4-5: Best Daily Performance (2 pages, 6 months each) ===
-                if (reportData.highestDailyData) {
+                if (includeDailyPerformance && reportData.highestDailyData) {
                     const dailyTables = this._preparePerformanceTables(reportData.highestDailyData, 'daily');
                     
                     if (dailyTables.length > 0) {
                         // Page 1: January - June
-                        pdf.addPage();
+                        if (!isFirstPage) pdf.addPage();
+                        else isFirstPage = false;
                         pdf.lastY = 0;
                         this._addHeader(pdf, reportData.title);
                         pdf.lastY = this.pageOptions.margins.top;
@@ -115,12 +131,13 @@ class ReportGenerator {
                 }
                 
                 // === PAGES 6-7: Best Weekly Performance (2 pages, 6 months each) ===
-                if (reportData.highestWeeklyData) {
+                if (includeWeeklyPerformance && reportData.highestWeeklyData) {
                     const weeklyTables = this._preparePerformanceTables(reportData.highestWeeklyData, 'weekly');
                     
                     if (weeklyTables.length > 0) {
                         // Page 1: January - June
-                        pdf.addPage();
+                        if (!isFirstPage) pdf.addPage();
+                        else isFirstPage = false;
                         pdf.lastY = 0;
                         this._addHeader(pdf, reportData.title);
                         pdf.lastY = this.pageOptions.margins.top;
@@ -138,12 +155,13 @@ class ReportGenerator {
                 }
                 
                 // === PAGES 8-9: Best Monthly Performance (2 pages, 6 months each) ===
-                if (reportData.highestMonthlyData) {
+                if (includeMonthlyPerformance && reportData.highestMonthlyData) {
                     const monthlyPerfTables = this._preparePerformanceTables(reportData.highestMonthlyData, 'monthly');
                     
                     if (monthlyPerfTables.length > 0) {
                         // Page 1: January - June
-                        pdf.addPage();
+                        if (!isFirstPage) pdf.addPage();
+                        else isFirstPage = false;
                         pdf.lastY = 0;
                         this._addHeader(pdf, reportData.title);
                         pdf.lastY = this.pageOptions.margins.top;
@@ -157,6 +175,20 @@ class ReportGenerator {
                             pdf.lastY = this.pageOptions.margins.top;
                             this._renderPerformanceGrid(pdf, monthlyPerfTables, autoTableFunc, `Best Individual Monthly Performance - ${yearLabel} (Excl. Batches)`, 2);
                         }
+                    }
+                }
+                
+                // === TEAM MONTHLY TOTALS BY FOLDER PAGE ===
+                // Add a page showing each folder's monthly totals for the whole team
+                if (includeTeamMonthlyTotals) {
+                    const teamMonthlyTable = this._prepareTeamMonthlyFolderTotals(yearlyData);
+                    if (teamMonthlyTable) {
+                        if (!isFirstPage) pdf.addPage();
+                        else isFirstPage = false;
+                        pdf.lastY = 0;
+                        this._addHeader(pdf, reportData.title);
+                        pdf.lastY = this.pageOptions.margins.top;
+                        await this._addMainTableSection(pdf, teamMonthlyTable, autoTableFunc, teamMonthlyTable.title);
                     }
                 }
                 
@@ -856,6 +888,64 @@ class ReportGenerator {
         });
         
         return tables;
+    }
+
+    /**
+     * Prepares a team-wide monthly totals table showing each folder's totals by month
+     * for the whole team combined.
+     * @param {Object} yearlyData - The yearly report data
+     * @returns {Object} Table data with head, body, and title
+     */
+    _prepareTeamMonthlyFolderTotals(yearlyData) {
+        const { yearlyData: data, folders, persons } = yearlyData;
+        const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        if (!persons || persons.length === 0 || !folders || folders.length === 0) {
+            return null;
+        }
+        
+        // Create header row: Folder | Jan | Feb | ... | Dec | Total
+        const headerRow = ["Folder", ...MONTH_NAMES_SHORT, "Total"];
+        
+        // Create body rows - one row per folder, summing all persons
+        const bodyRows = [];
+        const columnTotals = new Array(13).fill(0); // 12 months + 1 total column
+        
+        folders.forEach(folder => {
+            const row = [folder];
+            let rowTotal = 0;
+            
+            // Sum data for each month across ALL persons
+            for (let month = 1; month <= 12; month++) {
+                let monthTotal = 0;
+                
+                // Sum this folder's month value from all persons
+                persons.forEach(person => {
+                    const personData = data[person];
+                    if (personData && personData[folder]) {
+                        monthTotal += personData[folder][month] || 0;
+                    }
+                });
+                
+                row.push(monthTotal);
+                columnTotals[month - 1] += monthTotal;
+                rowTotal += monthTotal;
+            }
+            
+            row.push(rowTotal);
+            columnTotals[12] += rowTotal;
+            bodyRows.push(row);
+        });
+        
+        // Add total row
+        const totalRow = ["Total", ...columnTotals];
+        bodyRows.push(totalRow);
+        
+        return {
+            head: [headerRow],
+            body: bodyRows,
+            title: "Team Monthly Totals by Folder"
+        };
     }
 
     /**

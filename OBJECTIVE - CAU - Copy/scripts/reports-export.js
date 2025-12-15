@@ -247,13 +247,24 @@ class ReportsExporter {
 
     /**
      * Exports yearly report as PDF.
-     * @param {object} options - { year, selectedPersons, selectedFolders, isYearly }
+     * @param {object} options - { year, selectedPersons, selectedFolders, isYearly, includeCoverPage, includePerformerSummaries, etc. }
      */
     async exportYearlyReportPdf(options) {
         this.showMessage('Generating yearly PDF report(s)...', false, 15000);
 
         try {
-            const { year, selectedPersons, selectedFolders, includeMonthlyBreakdowns = true } = options;
+            const { 
+                year, 
+                selectedPersons, 
+                selectedFolders, 
+                includeCoverPage = true,
+                includePerformerSummaries = true,
+                includeDailyPerformance = true,
+                includeWeeklyPerformance = true,
+                includeMonthlyPerformance = true,
+                includeTeamMonthlyTotals = true,
+                includeMonthlyBreakdowns = true 
+            } = options;
 
             if (!year) {
                 throw new Error("Missing required report option (year).");
@@ -269,6 +280,12 @@ class ReportsExporter {
 
             const reportOptions = {
                 reportYear: year,
+                includeCoverPage: includeCoverPage,
+                includePerformerSummaries: includePerformerSummaries,
+                includeDailyPerformance: includeDailyPerformance,
+                includeWeeklyPerformance: includeWeeklyPerformance,
+                includeMonthlyPerformance: includeMonthlyPerformance,
+                includeTeamMonthlyTotals: includeTeamMonthlyTotals,
                 includeMonthlyBreakdowns: includeMonthlyBreakdowns
             };
 

@@ -1,5 +1,6 @@
 // index.js - Main UI (v1.4.2-compat - Removed storage health check)
 'use strict';
+
 // Constants
 const ACTION_RUN_SCRIPTS = "runScripts";
 const ACTION_UPDATE_PROGRESS = "updateProgress";
@@ -26,6 +27,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const browserAPI = (typeof chrome !== 'undefined' && chrome.runtime) ? chrome : null;
     let keepAlivePort = null; // Added for keep-alive
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 3;
+
+    // Function to establish/re-establish keep-alive connection
+    function establishKeepAliveConnection() {
+        if (!browserAPI) return false;
+        
+        try {
+            console.log("Index.js: Attempting to establish keep-alive connection...");
+            keepAlivePort = browserAPI.runtime.connect({ name: "keepAliveIndexUI" });
+            
+            keepAlivePort.onDisconnect.addListener(() => {
+                console.warn("Index.js: Keep-alive port disconnected.");
+                keepAlivePort = null;
+                
+                // Attempt to reconnect after a short delay
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++;
+                    console.log(`Index.js: Attempting reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+                    setTimeout(() => {
+                        if (establishKeepAliveConnection()) {
+                            logMessage("Connection restored.");
+                            reconnectAttempts = 0;
+                        }
+                    }, 500);
+                } else {
+                    logError("Communication channel closed. Please refresh the page.");
+                }
+            });
+            
+            console.log("Index.js: Keep-alive port established.", keepAlivePort);
+            return true;
+        } catch (e) {
+            console.error("Index.js: Failed to create keep-alive port:", e);
+            logError("Error initializing communication channel.");
+            keepAlivePort = null;
+            return false;
+        }
+    }
 
     // --- Populate Year Dropdown Dynamically ---
     function populateYearDropdown() {
@@ -56,12 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
          }
 
         // Establish keep-alive connection
-        try {
-             console.log("Index.js: Attempting to establish keep-alive connection...");
-             keepAlivePort = browserAPI.runtime.connect({ name: "keepAliveIndexUI" });
-             keepAlivePort.onDisconnect.addListener(() => { console.warn("Index.js: Keep-alive port disconnected."); logError("Warning: Communication channel closed."); keepAlivePort = null; });
-             console.log("Index.js: Keep-alive port established.", keepAlivePort);
-        } catch (e) { console.error("Index.js: Failed to create keep-alive port:", e); logError("Error initializing communication channel."); }
+        establishKeepAliveConnection();
 
 
         if (spinnerOverlay) spinnerOverlay.style.display = 'none';
@@ -216,7 +251,18 @@ function setCurrentDateDefaults() {
     // Function to handle the "Fetch Stats" button click
     function handleRunButtonClick() {
         console.log("Index.js: handleRunButtonClick START");
-        if (!browserAPI || !keepAlivePort) { logError("Communication channel inactive."); console.error("Aborting, keepAlivePort is null."); return; }
+        if (!browserAPI) { logError("Chrome API not available."); return; }
+        
+        // Try to reconnect if port is null
+        if (!keepAlivePort) {
+            console.log("Index.js: keepAlivePort is null, attempting reconnect...");
+            if (!establishKeepAliveConnection()) {
+                logError("Communication channel inactive. Please refresh the page.");
+                console.error("Aborting, keepAlivePort is null after reconnect attempt.");
+                return;
+            }
+        }
+        
         if (!yearDropdown || !monthDropdown) { logError("Date dropdowns not found."); return; }
 
         try {
@@ -254,13 +300,27 @@ function setCurrentDateDefaults() {
     }
 
     // Function to handle processing completion from background
-    function handleProcessingComplete(message) {
+    async function handleProcessingComplete(message) {
         console.log("Processing complete message received:", message);
-        if (spinnerOverlay) spinnerOverlay.style.display = "none"; if (runButton) runButton.disabled = false;
+        if (spinnerOverlay) spinnerOverlay.style.display = "none"; 
+        if (runButton) runButton.disabled = false;
+        
         const failures = message.total - message.successful;
-        if (message.error) { logMessage(`❌ ERROR: ${message.error}. ${message.successful}/${message.total} succeeded before error.`, true); }
-        else if (failures > 0) { logMessage(`⚠️ Complete! ${message.successful}/${message.total} succeeded (${failures} failed - check Logs).`, true); if (message.results) { console.warn("Failed items:", message.results.filter(r => !r.success)); } }
-        else { logMessage(`✅ Complete! All ${message.total} succeeded.`); }
+        
+        if (message.error) { 
+            logMessage(`❌ ERROR: ${message.error}. ${message.successful}/${message.total} succeeded before error.`, true); 
+        }
+        else if (failures > 0) { 
+            logMessage(`⚠️ Complete! ${message.successful}/${message.total} succeeded (${failures} failed - check Logs).`, true); 
+            if (message.results) { 
+                console.warn("Failed items:", message.results.filter(r => !r.success)); 
+            } 
+        }
+        else { 
+            logMessage(`✅ Complete! All ${message.total} succeeded.`); 
+        }
+        
+        // Verification modal will be triggered by background.js if enabled
     }
 
     // FIX: Removed the checkStorageHealth function definition

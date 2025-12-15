@@ -57,7 +57,35 @@
     <div id="progressInfo">Preparing...</div>
   </div>
 
+  <!-- Verification Modal -->
+  <div id="verificationModal" class="verification-modal" style="display: none;">
+    <div class="verification-content">
+      <div class="verification-header">
+        <h2>Verify Extracted Data</h2>
+        <div class="verification-controls">
+          <input type="text" id="verificationSearch" placeholder="Search..." />
+          <button id="filterAttentionBtn" class="btn btn-sm btn-attention-filter" title="Show only items needing attention">⚠ Show Flagged</button>
+          <span id="verificationCounter">0 entries</span>
+        </div>
+      </div>
+      <div class="verification-body" id="verificationBody">
+        <!-- Dynamic content populated by verification-modal.js -->
+      </div>
+      <div class="verification-footer">
+        <div class="verification-stats">
+          <span id="verificationTotalRows">Total Rows: 0</span>
+          <span id="verificationAttentionCount" class="attention-count"></span>
+        </div>
+        <div class="verification-buttons">
+          <button class="btn btn-secondary" id="verificationCancel">Cancel</button>
+          <button class="btn btn-primary" id="verificationConfirm">Confirm & Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="scripts/theme-toggle.js"></script>
+  <script type="module" src="scripts/verification-modal.js"></script>
   <script type="module" src="scripts/index.js"></script>
 </body>
 </html>

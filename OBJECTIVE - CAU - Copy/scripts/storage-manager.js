@@ -102,18 +102,10 @@ class StorageManagerClass {
                     const mDate = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
                     if (!mDate) return;
 
-                    let year = parseInt(mDate[1], 10);
-                    let month = parseInt(mDate[2], 10);
-
-                    const mFolder = folderKey.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{4})/i);
-                    if (mFolder) {
-                        const map = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-                        month = map[mFolder[1].slice(0, 3).toLowerCase()];
-                        year = parseInt(mFolder[2], 10);
-                    } else if (Number.isInteger(procYear) && Number.isInteger(procMonth)) {
-                        year = procYear;
-                        month = procMonth;
-                    }
+                    // Always use the actual date from the extracted data - this ensures
+                    // data is stored in the correct month regardless of search parameters
+                    const year = parseInt(mDate[1], 10);
+                    const month = parseInt(mDate[2], 10);
 
                     persons[person][year] = persons[person][year] || {};
                     persons[person][year][month] = persons[person][year][month] || {};

@@ -1,5 +1,5 @@
 // TEST/scripts/scriptA.js
-// scriptA.js - Data Processing Module v1.39 (Updated Breadcrumb Selectors)
+// scriptA.js - Data Processing Module v1.40 (Enhanced Metadata Output)
 'use strict';
 
 // --- Constants (Values Only) ---
@@ -7,7 +7,7 @@ const CONSOLE_LOGGING_ENABLED = false; // TOGGLE: Set to false to disable consol
 const CLOSE_DELAY_MS = 5000;
 const INITIAL_DELAY_MS = 200;
 
-if (CONSOLE_LOGGING_ENABLED) console.log("🚀 Script A (v1.39 - Updated Breadcrumb Selectors) Loading Start:", new Date().toISOString());
+if (CONSOLE_LOGGING_ENABLED) console.log("🚀 Script A (v1.40 - Enhanced Metadata Output) Loading Start:", new Date().toISOString());
 
 // --- Utility Functions ---
 function logToBackground(level = 'log', message = '', ...details) { if (CONSOLE_LOGGING_ENABLED && (level === 'error' || level === 'warn' || level === 'info' || level === 'debug')) console[level](`[ScriptA Log] ${message}`, ...details); try { if (typeof browserAPI !== 'undefined' && browserAPI?.runtime?.sendMessage) { browserAPI.runtime.sendMessage({ action: "logFromScript", payload: { script: 'ScriptA', level: level, message: message, details: details, timestamp: new Date().toISOString(), url: window.location.href } }, (response) => { if (browserAPI.runtime.lastError && !browserAPI.runtime.lastError.message?.includes("Receiving end does not exist") && !browserAPI.runtime.lastError.message?.includes("message port closed")) console.error('[ScriptA Log] Failed send log:', browserAPI.runtime.lastError.message); }); } else { if (CONSOLE_LOGGING_ENABLED) console.warn("[ScriptA Log] Cannot send log - browserAPI not available."); } } catch (e) { console.error('[ScriptA Log] Exception sending log:', e); } }
@@ -103,14 +103,25 @@ async function processObjectiveData() {
         // --- Data Extraction ---
         logToBackground('log', "Script A - Starting data extraction...");
         let dataPayload = {};
+        let extractedRows = [];
+        let processedCount = 0;
+        let skippedCount = 0;
+        let minDate = null;
+        let maxDate = null;
+        let weightedTotal = 0;
         const personDateRegex = /\bModified on (\d{1,2}) ([A-Za-z]{3}) (\d{4}) by ([A-Za-z]+) ([A-Za-z]+)\b/;
         const trailingNumRegex = /\s-\s(\d+)$/;
         const listItemSelector = 'div.layout__content ol > li';
+        let rowIndex = 0;
 
         document.querySelectorAll(listItemSelector).forEach((listItemElement) => {
+            rowIndex++;
             const spanElement = listItemElement.querySelector('span[title*="Modified on"]');
             const anchorElement = listItemElement.querySelector('xen-object-title > a');
-            if (!spanElement || !anchorElement) return;
+            if (!spanElement || !anchorElement) {
+                skippedCount++;
+                return;
+            }
 
             const titleText = spanElement.getAttribute('title');
             const anchorText = anchorElement.textContent || "";
@@ -138,12 +149,70 @@ async function processObjectiveData() {
                     if (!dataPayload[personName]) dataPayload[personName] = {};
                     if (!dataPayload[personName][formattedDate]) dataPayload[personName][formattedDate] = 0;
                     dataPayload[personName][formattedDate] += incrementAmount;
+                    
+                    processedCount++;
+                    weightedTotal += incrementAmount;
+                    
+                    // Track date range
+                    if (!minDate || formattedDate < minDate) minDate = formattedDate;
+                    if (!maxDate || formattedDate > maxDate) maxDate = formattedDate;
+                    
+                    // Store row details for extraction report
+                    extractedRows.push({
+                        rowIndex: rowIndex,
+                        dateText: dateStr,
+                        isoDate: formattedDate,  // Pre-parsed ISO date for reliable storage
+                        nameText: `${firstName} ${lastName}`,
+                        countText: anchorText,
+                        person: personName,
+                        count: incrementAmount,
+                        rule: useTrailingCount ? "trailing_number" : "default"
+                    });
+                } else {
+                    skippedCount++;
                 }
+            } else {
+                skippedCount++;
             }
         });
 
-        logToBackground('log', `Script A - Data extraction finished.`);
-        sendMessageToBackground({ action: "csvContentDetected", dataPayload: dataPayload, folderName: folderName });
+        const personCount = Object.keys(dataPayload).length;
+        const dateRange = { start: minDate, end: maxDate };
+        
+        logToBackground('log', `Script A - Data extraction finished. Processed: ${processedCount}, Skipped: ${skippedCount}, Persons: ${personCount}`);
+        
+        sendMessageToBackground({ 
+            action: "csvContentDetected", 
+            dataPayload: dataPayload, 
+            folderName: folderName,
+            metadata: {
+                processedRows: processedCount,
+                skippedRows: skippedCount,
+                personCount: personCount,
+                dateRange: dateRange,
+                expectedTotal: rowIndex,
+                actualTotal: weightedTotal,
+                scriptType: "A",
+                timestamp: new Date().toISOString(),
+                extractionReport: {
+                    timestamp: new Date().toISOString(),
+                    folderName: folderName,
+                    expectedTotal: rowIndex,
+                    actualTotal: weightedTotal,
+                    extractedRows: extractedRows.length,
+                    processedRows: processedCount,
+                    skippedRows: skippedCount,
+                    uniquePersons: personCount,
+                    dateRange: dateRange,
+                    rows: extractedRows,
+                    personSummary: Object.entries(dataPayload).map(([person, dates]) => ({
+                        person: person,
+                        total: Object.values(dates).reduce((sum, count) => sum + count, 0),
+                        dates: Object.entries(dates).map(([date, count]) => ({ date: date, count: count })),
+                    })),
+                },
+            },
+        });
         closeWindowWithDelay("Message sent");
     } catch (error) {
         console.error("Script A Critical Error:", error);

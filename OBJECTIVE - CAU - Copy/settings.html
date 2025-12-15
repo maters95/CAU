@@ -151,6 +151,50 @@
         </div>
     </div>
     
+    <!-- Data Review Exclusions Section -->
+    <div class="data-review-section" id="data-review-section">
+        <h3>Data Review Settings</h3>
+        <p class="section-description">Configure which folders to exclude from the post-processing data review popup.</p>
+        
+        <div class="exclusion-controls">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enableDataReviewToggle" checked>
+                    Enable data review popup after script completion
+                </label>
+            </div>
+            
+            <div class="folder-exclusions" id="folderExclusionsContainer">
+                <h4>Exclude Folders from Review:</h4>
+                <div id="folderExclusionList" class="exclusion-list">
+                    <!-- Dynamic folder checkboxes will be inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="button-row-secondary">
+            <button id="applyDataReviewSettingsBtn" class="btn primary">Apply Settings</button>
+            <button id="resetDataReviewSettingsBtn" class="btn">Reset to Default</button>
+        </div>
+    </div>
+    
+    <!-- Force Single Count Section -->
+    <div class="force-single-count-section" id="force-single-count-section">
+        <h3>Force Single Count (Script B)</h3>
+        <p class="section-description">Select folders where Script B should always force the count to 1, regardless of extracted values. This is useful for folders where each entry should only count as a single item.</p>
+        
+        <div id="forceSingleCountContainer" class="force-single-count-container">
+            <div id="forceSingleCountList" class="exclusion-list">
+                <!-- Dynamic folder checkboxes will be inserted here -->
+            </div>
+        </div>
+        
+        <div class="button-row-secondary">
+            <button id="applyForceSingleCountBtn" class="btn primary">Apply Settings</button>
+            <button id="clearForceSingleCountBtn" class="btn">Clear All</button>
+        </div>
+    </div>
+    
     <!-- Folder Type Selection Modal -->
     <div id="folderTypeSelectionModal" class="modal-overlay hidden">
         <div class="modal-container">

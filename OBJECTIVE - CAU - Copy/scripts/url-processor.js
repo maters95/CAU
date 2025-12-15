@@ -132,24 +132,16 @@ async function closeTab(tabId) {
 }
 
 // ---------------------------------------------------------------------------
-// Utility: last day of a given month
-// ---------------------------------------------------------------------------
-function getLastDay(year, month1) {            // month1 = 1‑based
-  return new Date(year, month1, 0).getDate();  // day 0 of next month
-}
-
-// ---------------------------------------------------------------------------
-// processDataPayload  (adds month‑coercion before storing)
+// processDataPayload  (stores data with actual extracted dates - no coercion)
 // ---------------------------------------------------------------------------
 async function processDataPayload(
   rawFolderName,
   configYear,
-  configMonth0,            // 0‑based
+  configMonth0,            // 0‑based (only used for search/display, not storage)
   dataPayload,
   sourceTabId = '?'
 ) {
   const displayName = getDisplayNameForKey(rawFolderName);
-  log(sourceTabId, 'processDataPayload', `RAW:"${rawFolderName}" → Key:"${displayName}" (Run:${configYear}-${configMonth0 + 1})`);
 
   // derive final storage key -------------------------------------------------
   const folderKey = displayName && displayName !== 'Unknown Folder'
@@ -161,36 +153,16 @@ async function processDataPayload(
     return;
   }
 
-  // ---- month‑boundary coercion --------------------------------------------
-  const runMonth1 = configMonth0 + 1;           // 1‑based
-  const lastDay   = getLastDay(configYear, runMonth1);
-  const canonical = `${configYear}-${String(runMonth1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-
-  const fixedPayload = {};
-
-  Object.entries(dataPayload || {}).forEach(([person, datesObj]) => {
-    fixedPayload[person] = fixedPayload[person] || {};
-
-    Object.entries(datesObj || {}).forEach(([dateKey, count]) => {
-      let targetDate = dateKey;
-      const [y, m] = dateKey.split('-').map(Number);
-
-      // If the year matches but the month drifts into the future, snap back
-      if (y === configYear && m > runMonth1) {
-        targetDate = canonical;
-      }
-
-      fixedPayload[person][targetDate] =
-        (fixedPayload[person][targetDate] || 0) + (Number.isFinite(count) ? count : 0);
-    });
-  });
+  // Store data exactly as extracted - no date manipulation
+  // configYear/configMonth are for search parameters only, not for modifying dates
+  log(sourceTabId, 'processDataPayload', `Storing data for folder "${folderKey}" with original extracted dates`);
 
   await storeDataWithKey(
     folderKey,
     rawFolderName,
     configYear,
     configMonth0,
-    fixedPayload,
+    dataPayload,  // Pass original payload without modification
     sourceTabId
   );
 }
@@ -221,7 +193,6 @@ async function storeDataWithKey(
   }
   try {
     await StorageManager.storeData(dataPayload, folderKeyToUse);
-    log(sourceTabId, 'storeDataWithKey', `Stored under "${folderKeyToUse}" (raw:"${rawFolderName}")`);
   } catch (error) {
     log(sourceTabId, 'storeDataWithKey', `CRITICAL store error: ${error.message}`, true);
     ErrorManager.logError(
@@ -235,9 +206,9 @@ async function storeDataWithKey(
 // ---------------------------------------------------------------------------
 // processUrls  •  full implementation (identical to v1.3 except internal logs)
 // ---------------------------------------------------------------------------
-async function processUrls(urls, rawFolderNames, scriptTypes, configYears, configMonths) {
+async function processUrls(urls, rawFolderNames, scriptTypes, configYears, configMonths, requireVerification = false, excludedFoldersFromReview = []) {
   const total = urls.length;
-  log(null, 'processUrls Start', `Starting ${total} URLs`);
+  log(null, 'processUrls Start', `Starting ${total} URLs (requireVerification: ${requireVerification}, excludedFolders: ${excludedFoldersFromReview.length})`);
   if (total === 0) return { total, successful: 0, results: [] };
   let successful = 0;
   const results = [];
@@ -299,8 +270,31 @@ async function processUrls(urls, rawFolderNames, scriptTypes, configYears, confi
         successful++;
         const extractedRawFolderName = result.folderName || rawConfigFolder;
         await addExecutionLog(extractedRawFolderName, type, 'Success');
-        await processDataPayload(extractedRawFolderName, year, monthZeroBased, result.dataPayload, tabId);
-        results.push({ success: true, url, configuredFolder: rawConfigFolder, extractedFolder: extractedRawFolderName });
+        
+        // Check if folder is excluded from review
+        const isFolderExcluded = excludedFoldersFromReview.includes(extractedRawFolderName);
+        
+        // Save data immediately if:
+        // 1. Verification is NOT required, OR
+        // 2. This folder is excluded from review (auto-save excluded folders)
+        if (!requireVerification || isFolderExcluded) {
+          await processDataPayload(extractedRawFolderName, year, monthZeroBased, result.dataPayload, tabId);
+          if (isFolderExcluded) {
+            log(tabId, 'processUrls', `Data auto-saved for excluded folder "${extractedRawFolderName}"`);
+          } else {
+            log(tabId, 'processUrls', 'Data saved immediately (no verification required)');
+          }
+        } else {
+          log(tabId, 'processUrls', 'Skipping immediate save - verification required');
+        }
+        
+        results.push({ 
+          success: true, 
+          url, 
+          configuredFolder: rawConfigFolder, 
+          extractedFolder: extractedRawFolderName,
+          extractionReport: result.extractionReport
+        });
         sendProgress(i + 1, url, 'Success', extractedRawFolderName);
       } else {
         throw new Error(result.message || 'Script failed or returned no data');
@@ -320,6 +314,10 @@ async function processUrls(urls, rawFolderNames, scriptTypes, configYears, confi
   }
 
   log(null, 'processUrls End', `Finished. Success: ${successful}/${total}. Stopped: ${processingShouldStop}`);
+  
+  // Note: Verification modal is sent by background.js (the caller) which has access to weekInfo
+  // We do NOT send verification data here to avoid duplicate modals and race conditions
+  
   try {
     browserAPI.runtime.sendMessage({ action: ACTION_PROCESSING_COMPLETE, total, successful, results });
   } catch {}
@@ -351,7 +349,12 @@ function handleScriptMessage(msg, sender) {
         break;
       case ACTION_CSV_DETECTED:
         if (funcs?.resolve) {
-          funcs.resolve({ success: true, dataPayload: msg.dataPayload, folderName: msg.folderName });
+          funcs.resolve({ 
+            success: true, 
+            dataPayload: msg.dataPayload, 
+            folderName: msg.folderName,
+            extractionReport: msg.metadata?.extractionReport
+          });
           activeTabPromises.delete(tabId);
         } else {
           log(tabId, 'handleScriptMessage Warning', `Received CSV_DETECTED but no active promise found.`);

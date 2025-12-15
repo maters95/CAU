@@ -108,6 +108,81 @@ const STATE_FLAGS = {
 };
 const OBJECTIVE_IMPORT_STATE_KEY = 'objectiveImportState';
 
+// Date parsing regex patterns
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const SLASH_DATE_REGEX = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/;
+
+// Normalize date text to ISO format (YYYY-MM-DD)
+function normalizeDateTextToIso(dateText) {
+    if (!dateText || typeof dateText !== 'string') return null;
+    
+    const trimmed = dateText.trim();
+    if (!trimmed) return null;
+    
+    // Already in ISO format
+    if (ISO_DATE_REGEX.test(trimmed)) return trimmed;
+    
+    // Try slash/dash format (DD/MM/YYYY or DD-MM-YYYY)
+    const slashMatch = trimmed.match(SLASH_DATE_REGEX);
+    if (slashMatch) {
+        let [, day, month, year] = slashMatch;
+        year = year.length === 2 ? `20${year}` : year.padStart(4, '0');
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // Try parsing as general date string
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+        return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, '0')}-${String(parsed.getUTCDate()).padStart(2, '0')}`;
+    }
+    
+    originalConsole.warn(`BG: Unable to parse date text "${dateText}" into ISO format.`);
+    return null;
+}
+
+// Auto-save force single count folder with count=1 for each row
+async function autoSaveForceSingleCountFolder(report, configYear, configMonth) {
+    try {
+        const folderName = report.folderName || 'Unknown Folder';
+        const folderKey = getDisplayNameForKey(folderName);
+        console.log(`BG: Auto-saving force single count folder: ${folderName} (key: ${folderKey})`);
+        
+        const folderPayload = {};
+        
+        if (report.rows && Array.isArray(report.rows)) {
+            report.rows.forEach(row => {
+                const personName = (row.person || row.nameText || '').trim();
+                if (!personName) return;
+                
+                // Use isoDate if available, otherwise parse dateText
+                const isoDate = row.isoDate || normalizeDateTextToIso(row.dateText || '');
+                if (!isoDate) return;
+                
+                // Force count to 1 for any non-zero count
+                const count = (row.count || 0) > 0 ? 1 : 0;
+                if (count === 0) return;
+                
+                folderPayload[personName] = folderPayload[personName] || {};
+                folderPayload[personName][isoDate] = (folderPayload[personName][isoDate] || 0) + count;
+            });
+        }
+        
+        if (Object.keys(folderPayload).length === 0) {
+            console.warn(`BG: No valid data to auto-save for force single count folder: ${folderName}`);
+            return;
+        }
+        
+        // Determine target year/month from first date if not provided
+        const targetYear = Number.isInteger(configYear) ? configYear : undefined;
+        const targetMonth = Number.isInteger(configMonth) ? configMonth + 1 : undefined;
+        
+        await StorageManager.storeData(folderPayload, folderKey, targetYear, targetMonth);
+        console.log(`BG: Successfully auto-saved force single count folder: ${folderName}`);
+    } catch (error) {
+        console.error(`BG: Error auto-saving force single count folder:`, error);
+    }
+}
+
 // Initialize StorageManager
 async function initializeStorageManager() {
     try {
@@ -1290,13 +1365,134 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         throw new Error("Invalid arguments for runScripts action."); 
                     }
                     
+                    const requireVerification = message.requireVerification !== false;
+                    let currentRunExtractionReports = [];
+                    
                     sendResponse({ status: STATUS_ACK_PROCESSING });
                     handledAsync = true;
                     try {
                         browserAPI.power.requestKeepAwake('system');
                         await setStateFlag(STATE_FLAGS.URL_PROCESSING, true);
-                        const summary = await processUrls(message.urls, message.folderNames, message.scriptTypes, Array(message.urls.length).fill(message.configYear), Array(message.urls.length).fill(message.configMonth));
+                        
+                        // Load excluded folders from settings for auto-save
+                        const DATA_REVIEW_SETTINGS_KEY = 'dataReviewSettings';
+                        const settingsResult = await browserAPI.storage.local.get([DATA_REVIEW_SETTINGS_KEY, 'forceSingleCountFolders']);
+                        const excludedFolders = settingsResult[DATA_REVIEW_SETTINGS_KEY]?.excludedFolders || [];
+                        const forceSingleCountFolders = settingsResult.forceSingleCountFolders || [];
+                        if (excludedFolders.length > 0) {
+                            console.log('BG: Excluded folders (will auto-save):', excludedFolders);
+                        }
+                        if (forceSingleCountFolders.length > 0) {
+                            console.log('BG: Force single count folders (will auto-save with count=1):', forceSingleCountFolders);
+                        }
+                        
+                        const summary = await processUrls(message.urls, message.folderNames, message.scriptTypes, Array(message.urls.length).fill(message.configYear), Array(message.urls.length).fill(message.configMonth), requireVerification, excludedFolders);
                         console.log("BG: URL processing finished via message.", summary);
+                        
+                        // Collect extraction reports from results (like D&A)
+                        if (summary.results && Array.isArray(summary.results)) {
+                            summary.results.forEach(result => {
+                                if (result.success && result.extractionReport) {
+                                    currentRunExtractionReports.push(result.extractionReport);
+                                }
+                            });
+                            console.log(`BG: Collected ${currentRunExtractionReports.length} extraction reports`);
+                        }
+                        
+                        // Send verification modal if enabled and reports exist
+                        if (requireVerification && currentRunExtractionReports.length > 0) {
+                            try {
+                                console.log('BG: Preparing verification data...');
+                                
+                                // First, process force single count folders (auto-save with count=1)
+                                const forceSingleCountReports = currentRunExtractionReports.filter(report => {
+                                    return forceSingleCountFolders.some(f => 
+                                        report.folderName.includes(f) || f.includes(report.folderName)
+                                    );
+                                });
+                                
+                                // Auto-save force single count folders
+                                for (const report of forceSingleCountReports) {
+                                    console.log(`BG: Auto-saving force single count folder "${report.folderName}"`);
+                                    await autoSaveForceSingleCountFolder(report, message.configYear, message.configMonth);
+                                }
+                                
+                                // Filter out excluded folders and force single count folders from verification
+                                const verificationData = currentRunExtractionReports
+                                    .filter(report => {
+                                        const isExcluded = excludedFolders.includes(report.folderName);
+                                        const isForceSingleCount = forceSingleCountFolders.some(f => 
+                                            report.folderName.includes(f) || f.includes(report.folderName)
+                                        );
+                                        
+                                        if (isExcluded) {
+                                            console.log(`BG: Excluding folder "${report.folderName}" from verification (already auto-saved)`);
+                                        }
+                                        if (isForceSingleCount) {
+                                            console.log(`BG: Excluding folder "${report.folderName}" from verification (force single count - already auto-saved)`);
+                                        }
+                                        return !isExcluded && !isForceSingleCount;
+                                    })
+                                    .map(report => {
+                                    const folderData = {
+                                        folderName: report.folderName,
+                                        persons: []
+                                    };
+                                    
+                                    // Group rows by person
+                                    if (report.rows && Array.isArray(report.rows)) {
+                                        const personMap = new Map();
+                                        
+                                        report.rows.forEach(row => {
+                                            const personName = row.person || row.nameText;
+                                            if (!personMap.has(personName)) {
+                                                personMap.set(personName, []);
+                                            }
+                                            personMap.get(personName).push({
+                                                dateText: row.dateText || '',
+                                                isoDate: row.isoDate || '',  // Include pre-parsed ISO date
+                                                nameText: row.nameText || '',
+                                                countText: row.countText || '',
+                                                extractedCount: row.count || 0,
+                                                rule: row.rule || 'Unknown'
+                                            });
+                                        });
+                                        
+                                        // Convert map to array
+                                        personMap.forEach((rows, personName) => {
+                                            folderData.persons.push({
+                                                personName: personName,
+                                                rows: rows
+                                            });
+                                        });
+                                    }
+                                    
+                                    return folderData;
+                                });
+                                
+                                console.log(`BG: Sending verification modal with ${verificationData.length} folders (after excluding ${excludedFolders.length} folders)`);
+                                
+                                // If no folders left after exclusion, skip verification and auto-save
+                                if (verificationData.length === 0) {
+                                    console.log('BG: All folders excluded from review, skipping verification modal');
+                                    await updateBadge('Success', message.urls.length);
+                                    return { success: true, message: 'All processed folders were excluded from review' };
+                                }
+                                
+                                // Send to index.html verification modal
+                                await browserAPI.runtime.sendMessage({
+                                    action: 'showVerificationModal',
+                                    data: verificationData,
+                                    weekInfo: {
+                                        year: message.configYear,
+                                        week: message.configMonth  // This is 0-based from index.js
+                                    }
+                                });
+                                console.log('BG: Verification modal sent');
+                            } catch (error) {
+                                console.error("BG: Failed to send verification data:", error);
+                            }
+                        }
                     } finally {
                         await setStateFlag(STATE_FLAGS.URL_PROCESSING, false);
                         browserAPI.power.releaseKeepAwake();
@@ -1465,12 +1661,13 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     console.log("BG: Received request to clear all data.");
                     await setStateFlag(STATE_FLAGS.DATA_DELETION, true);
                     try {
+                        // Clear from IndexedDB (via StorageManager)
                         if (StorageManager.pako) {
                             await StorageManager.clearStorage([STORAGE_KEY_DATA, STORAGE_KEY_LOGS]);
-                        } else {
-                            await browserAPI.storage.local.remove([STORAGE_KEY_DATA, STORAGE_KEY_LOGS]);
                         }
-                        console.log("BG: All report data and execution logs cleared successfully.");
+                        // Always also clear from chrome.storage.local to prevent re-migration
+                        await browserAPI.storage.local.remove([STORAGE_KEY_DATA, STORAGE_KEY_LOGS]);
+                        console.log("BG: All report data and execution logs cleared from IndexedDB and chrome.storage.local.");
                         await addExecutionLog("SYSTEM", "Data Management", "Cleared All Data & Logs");
                         responsePayload = { status: STATUS_SUCCESS, message: "All report data and logs cleared." };
                         browserAPI.runtime.sendMessage({ action: ACTION_DATA_UPDATED, status: STATUS_SUCCESS, message: "All report data and logs cleared." }).catch(e => console.warn("BG: Could not send clear completion message.", e));
@@ -1575,7 +1772,11 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
                     break;
                 case ACTION_LOG_FROM_SCRIPT:
-                    console.log(`BG Log [${message.payload?.level?.toUpperCase() || 'INFO'}] from ${senderContext}:`, message.payload?.message, ...(message.payload?.details || []));
+                    // Only log ERROR and CRITICAL levels, skip DEBUG, INFO, WARN
+                    const logLevel = message.payload?.level?.toUpperCase() || 'INFO';
+                    if (logLevel === 'ERROR' || logLevel === 'CRITICAL') {
+                        console.log(`BG Log [${logLevel}] from ${senderContext}:`, message.payload?.message, ...(message.payload?.details || []));
+                    }
                     responsePayload = { handled: true };
                     break;
                 case ACTION_LOG_ERROR:
@@ -1587,6 +1788,122 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const holidays = await holidayService.getHolidays();
                     responsePayload = { holidays };
                     break;
+                
+                case 'verificationConfirmed': {
+                    console.log("BG: Received verified data from user");
+                    try {
+                        const verifiedData = Array.isArray(message.data) ? message.data : [];
+                        const weekInfo = message.weekInfo || {};
+                        const targetYear = Number.isInteger(weekInfo.year) ? weekInfo.year : undefined;
+                        // weekInfo.week is actually the 0-based month (configMonth) from index.js
+                        // We convert it to 1-based for storage. Note: This is only used for logging,
+                        // actual storage uses dates extracted from the data itself.
+                        const targetMonth = Number.isInteger(weekInfo.week) ? weekInfo.week + 1 : undefined;
+                        
+                        console.log(`BG: Processing ${verifiedData.length} verified folders for month ${targetMonth ?? 'auto'} (${targetYear ?? 'auto'})`);
+                        console.log(`BG: Week info received:`, weekInfo);
+                        console.log(`BG: Converted to 1-based month: ${targetMonth}`);
+                        
+                        // Load force single count settings
+                        let forceSingleCountFolders = [];
+                        try {
+                            const fsResult = await browserAPI.storage.local.get(['forceSingleCountFolders']);
+                            forceSingleCountFolders = fsResult.forceSingleCountFolders || [];
+                            console.log(`BG: Force single count folders:`, forceSingleCountFolders);
+                        } catch (e) {
+                            console.warn('BG: Could not load force single count settings:', e);
+                        }
+                        
+                        let foldersSaved = 0;
+                        
+                        for (const folder of verifiedData) {
+                            const folderName = folder?.folderName || 'Unknown Folder';
+                            const folderKey = getDisplayNameForKey(folderName);
+                            console.log(`BG: Processing folder: ${folderName} (key: ${folderKey})`);
+                            
+                            // Check if this folder should force single count
+                            const shouldForceSingleCount = forceSingleCountFolders.some(f => 
+                                folderName.includes(f) || folderKey.includes(f) || f.includes(folderKey)
+                            );
+                            if (shouldForceSingleCount) {
+                                console.log(`BG: Folder "${folderName}" is configured to force count=1`);
+                            }
+                            
+                            const folderPayload = {};
+                            
+                            (folder?.persons || []).forEach(person => {
+                                const personName = person?.personName?.trim() || 'Unknown Person';
+                                const rows = Array.isArray(person?.rows) ? person.rows : [];
+                                
+                                console.log(`BG: Processing ${rows.length} rows for person: ${personName}`);
+                                
+                                rows.forEach(row => {
+                                    // Use pre-parsed isoDate if available, otherwise parse from dateText
+                                    const isoDate = row?.isoDate || normalizeDateTextToIso(row?.dateText || '');
+                                    let count = Number(row?.extractedCount);
+                                    
+                                    // Force count to 1 if this folder is configured for single count
+                                    if (shouldForceSingleCount && count > 0) {
+                                        console.log(`BG: Forcing count from ${count} to 1 for folder "${folderName}"`);
+                                        count = 1;
+                                    }
+                                    
+                                    console.log(`BG: Row - dateText: "${row?.dateText}", isoDate: "${isoDate}", extractedCount: ${row?.extractedCount}, finalCount: ${count}`);
+                                    
+                                    if (!isoDate || !Number.isFinite(count) || count < 0) {
+                                        console.warn(`BG: Skipping invalid row - isoDate: ${isoDate}, count: ${count}`);
+                                        return;
+                                    }
+                                    
+                                    folderPayload[personName] = folderPayload[personName] || {};
+                                    folderPayload[personName][isoDate] = (folderPayload[personName][isoDate] || 0) + count;
+                                    console.log(`BG: Added ${count} to ${personName}[${isoDate}] = ${folderPayload[personName][isoDate]}`);
+                                });
+                                
+                                if (!folderPayload[personName] || Object.keys(folderPayload[personName]).length === 0) {
+                                    delete folderPayload[personName];
+                                }
+                            });
+                            
+                            if (Object.keys(folderPayload).length === 0) {
+                                console.warn(`BG: Skipping folder \"${folderName}\" - no valid verified rows to store.`);
+                                continue;
+                            }
+                            
+                            console.log(`BG: Calling StorageManager.storeData with:`, {
+                                folderPayload,
+                                folderKey,
+                                targetYear,
+                                targetMonth
+                            });
+                            
+                            await StorageManager.storeData(
+                                folderPayload,
+                                folderKey,
+                                targetYear,
+                                targetMonth
+                            );
+                            console.log(`BG: Successfully saved folder: ${folderName}`);
+                            foldersSaved++;
+                        }
+                        
+                        console.log(`BG: Verification complete. Saved ${foldersSaved} folders.`);
+                        responsePayload = { status: 'success', message: `${foldersSaved} folders saved` };
+                        
+                        // Notify UI of data update
+                        browserAPI.runtime.sendMessage({ 
+                            action: ACTION_DATA_UPDATED, 
+                            status: STATUS_SUCCESS 
+                        }).catch(e => console.warn('BG: Could not send data updated message.', e));
+                        
+                    } catch (error) {
+                        console.error('BG: Error processing verified data:', error);
+                        ErrorManager.logError('Verification Save Failed', { error: error.message }, SEVERITY.ERROR, CATEGORY.STORAGE);
+                        responsePayload = { status: 'error', error: error.message };
+                    }
+                    break;
+                }
+                
                 // Actions that are just receiving status updates from UI or completion handlers
                 case ACTION_REPORTS_GENERATED:
                 case ACTION_DELETE_COMPLETE:
@@ -1598,8 +1915,8 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     console.log(`BG: Action ${action} received, no specific response needed.`);
                     responsePayload = { handled: true };
                     break;
+                
                 default:
-                    console.warn(`BG: Received unknown action: ${action}`, message);
                     ErrorManager.logError("Unknown Background Action", { action: action, sender: senderContext }, SEVERITY.WARNING, CATEGORY.SYSTEM);
                     responsePayload = { status: STATUS_ERROR, error: `Unknown background action received: ${action}` };
                     break;
@@ -1636,7 +1953,7 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return [
         ACTION_RUN_SCRIPTS, ACTION_GENERATE_REPORTS, ACTION_DELETE_DATA, ACTION_CLEAR_ALL_DATA, ACTION_IMPORT_ALL_DATA,
         ACTION_GET_HOLIDAYS, ACTION_SET_LOGGING, ACTION_IMPORT_FROM_OBJECTIVE_URLS, ACTION_PROCESS_SELECTED_FOLDER_TYPES,
-        ACTION_SET_DAILY_FETCH, ACTION_GET_DAILY_FETCH_STATUS, ACTION_TRIGGER_DAILY_FETCH
+        ACTION_SET_DAILY_FETCH, ACTION_GET_DAILY_FETCH_STATUS, ACTION_TRIGGER_DAILY_FETCH, "verificationConfirmed"
     ].includes(message.action);
 });
 

@@ -9,7 +9,6 @@ const CONFIG = {
 };
 let SELECTOR_CONFIG = null;
 window.scriptBExtractionReports || (window.scriptBExtractionReports = []);
-const POLICE_STAGING_KEY = "scriptB_policeStagingData";
 const FOLDER_CONFIG_KEY = "ecmFolders";
 
 function log(level, message, ...details) {
@@ -149,18 +148,18 @@ function extractPersonIdentifier(nameText) {
 
 function extractCountFromText(countText) {
     if (!countText || "string" != typeof countText)
-        return { count: 1, rule: "default", matched: null, policeCount: null };
+        return { count: 1, rule: "default", matched: null };
     const cleaned = countText.trim();
     
     if (/\bnil\s+to\s+action\b/i.test(cleaned)) {
-        return { count: 0, rule: "nil_to_action", matched: cleaned, policeCount: null };
+        return { count: 0, rule: "nil_to_action", matched: cleaned };
     }
     
     const xPatternMatch = cleaned.match(/\bx\s*(\d{1,3})\b/i);
     if (xPatternMatch) {
         const count = parseInt(xPatternMatch[1], 10);
         if (Number.isFinite(count) && count >= 0) {
-            return { count: count, rule: "x_pattern", matched: xPatternMatch[0], policeCount: null };
+            return { count: count, rule: "x_pattern", matched: xPatternMatch[0] };
         }
     }
     
@@ -187,56 +186,43 @@ function extractCountFromText(countText) {
     
     if (parenCounts.length > 0) {
         const totalCount = parenCounts.reduce((sum, n) => sum + n, 0);
-        return { count: totalCount, rule: "parentheses", matched: `${parenCounts.length} parentheses`, policeCount: null };
+        return { count: totalCount, rule: "parentheses", matched: `${parenCounts.length} parentheses` };
     }
     
     const bracketMatches = cleaned.matchAll(/\[(\d{1,3})\]/g);
     const bracketCounts = Array.from(bracketMatches).map(m => parseInt(m[1], 10)).filter(n => Number.isFinite(n) && n >= 0);
     if (bracketCounts.length > 0) {
         const totalCount = bracketCounts.reduce((sum, n) => sum + n, 0);
-        return { count: totalCount, rule: "brackets", matched: `${bracketCounts.length} brackets`, policeCount: null };
+        return { count: totalCount, rule: "brackets", matched: `${bracketCounts.length} brackets` };
     }
     
-    const totalPoliceMatch = cleaned.match(/\bTotal\s+(\d{1,3})\s*-?\s*Police\s*-?\s*(\d{1,3})\b/i);
+    // Handle "Total X - Police Y" pattern - just use total count
+    const totalPoliceMatch = cleaned.match(/\bTotal\s+(\d{1,3})\s*-?\s*(?:Police\s*-?\s*\d{1,3})?\b/i);
     if (totalPoliceMatch) {
-        const totalCount = parseInt(totalPoliceMatch[1], 10),
-            policeCount = parseInt(totalPoliceMatch[2], 10);
-        if (Number.isFinite(totalCount) && totalCount >= 0 && Number.isFinite(policeCount) && policeCount >= 0)
-            return (
-                log("info", `🚔 Split count detected: "${countText}" → Total: ${totalCount}, Police: ${policeCount}`),
-                { count: totalCount, policeCount: policeCount, rule: "total_with_police", matched: totalPoliceMatch[0] }
-            );
-    }
-    
-    const policeTotalMatch = cleaned.match(/\bPolice\s*-?\s*(\d{1,3})\s*-?\s*Total\s+(\d{1,3})\b/i);
-    if (policeTotalMatch) {
-        const policeCount = parseInt(policeTotalMatch[1], 10),
-            totalCount = parseInt(policeTotalMatch[2], 10);
-        if (Number.isFinite(totalCount) && totalCount >= 0 && Number.isFinite(policeCount) && policeCount >= 0)
-            return (
-                log("info", `🚔 Split count detected (reverse): "${countText}" → Total: ${totalCount}, Police: ${policeCount}`),
-                { count: totalCount, policeCount: policeCount, rule: "total_with_police", matched: policeTotalMatch[0] }
-            );
+        const totalCount = parseInt(totalPoliceMatch[1], 10);
+        if (Number.isFinite(totalCount) && totalCount >= 0) {
+            return { count: totalCount, rule: "total_keyword", matched: totalPoliceMatch[0] };
+        }
     }
     
     const totalMatch = cleaned.match(/\bTotal\s+(\d{1,3})\b/i);
     if (totalMatch) {
         const count = parseInt(totalMatch[1], 10);
         if (Number.isFinite(count) && count >= 0)
-            return { count: count, rule: "total_keyword", matched: totalMatch[0], policeCount: null };
+            return { count: count, rule: "total_keyword", matched: totalMatch[0] };
     }
     
     if (/\b(LAW|MIS|ITOP)(?:\s+\w+)?\s*\d+/i.test(cleaned) || /\bS\d+(?:\/\d+)?/i.test(cleaned))
         return (
             log("info", `📋 Reference code detected: "${countText}" → defaulting to 1`),
-            { count: 1, rule: "reference_code", matched: cleaned, policeCount: null }
+            { count: 1, rule: "reference_code", matched: cleaned }
         );
     
     const standaloneMatch = cleaned.match(/^(\d{1,3})$/);
     if (standaloneMatch) {
         const count = parseInt(standaloneMatch[1], 10);
         if (Number.isFinite(count) && count >= 0)
-            return { count: count, rule: "standalone", matched: standaloneMatch[0], policeCount: null };
+            return { count: count, rule: "standalone", matched: standaloneMatch[0] };
     }
     
     const endNumberMatch = cleaned.match(/\b(\d{1,3})$/);
@@ -259,11 +245,11 @@ function extractCountFromText(countText) {
             Number.isFinite(count) &&
             count >= 0
         )
-            return { count: count, rule: "end_number", matched: endNumberMatch[0], policeCount: null };
+            return { count: count, rule: "end_number", matched: endNumberMatch[0] };
     }
     return (
         log("warn", `⚠️ NO VALID COUNT PATTERN: "${countText}" → defaulting to 1`),
-        { count: 1, rule: "default", matched: null, policeCount: null }
+        { count: 1, rule: "default", matched: null }
     );
 }
 
@@ -272,25 +258,7 @@ async function processExtractedData(extractedRows) {
         dateRange = { earliest: null, latest: null },
         weekYearSet = new Set();
     let processedCount = 0,
-        skippedCount = 0,
-        policeStagedCount = 0;
-    const folderName = await getFolderName(),
-        isPoliceFolder = folderName && folderName.toLowerCase().includes("police");
-    let policeStagingData = await (async function loadPoliceStagingData() {
-        try {
-            return (
-                (
-                    await new Promise((resolve, reject) => {
-                        browserAPI.storage.local.get(POLICE_STAGING_KEY, (data) => {
-                            browserAPI.runtime.lastError ? reject(browserAPI.runtime.lastError) : resolve(data);
-                        });
-                    })
-                )[POLICE_STAGING_KEY] || {}
-            );
-        } catch (error) {
-            return log("error", "Failed to load police staging data:", error), {};
-        }
-    })();
+        skippedCount = 0;
     
     extractedRows.forEach((row) => {
         const parsedDate = (function parseDate(dateStr) {
@@ -353,89 +321,45 @@ async function processExtractedData(extractedRows) {
         if (!person) return log("debug", "Could not extract person from name text"), void skippedCount++;
         const countInfo = extractCountFromText(row.countText);
         
-        countInfo.count > 999 &&
-            log("warn", `⚠️ SUSPICIOUS COUNT EXTRACTED: ${countInfo.count} (rule: ${countInfo.rule})`),
-            personData[person] || (personData[person] = {}),
-            personData[person][finalDate] || (personData[person][finalDate] = 0);
+        // Validate and store count
+        if (countInfo.count > 999) {
+            log("warn", `⚠️ SUSPICIOUS COUNT EXTRACTED: ${countInfo.count} (rule: ${countInfo.rule})`);
+        }
+        
+        personData[person] = personData[person] || {};
+        personData[person][finalDate] = personData[person][finalDate] || 0;
+        
         const previousCount = personData[person][finalDate];
-        (personData[person][finalDate] += countInfo.count),
-            personData[person][finalDate] > 999 &&
-                log(
-                    "warn",
-                    `⚠️ ACCUMULATION WARNING: ${person} on ${finalDate}: was ${previousCount}, added ${countInfo.count}, now ${personData[person][finalDate]}`
-                ),
-            countInfo.policeCount &&
-                countInfo.policeCount > 0 &&
-                (policeStagingData[person] || (policeStagingData[person] = {}),
-                policeStagingData[person][finalDate] || (policeStagingData[person][finalDate] = 0),
-                (policeStagingData[person][finalDate] += countInfo.policeCount),
-                policeStagedCount++,
-                log(
-                    "info",
-                    `🚔 Staged Police data: ${person} on ${finalDate} += ${countInfo.policeCount} (now ${policeStagingData[person][finalDate]})`
-                )),
-            (!dateRange.earliest || finalDate < dateRange.earliest) && (dateRange.earliest = finalDate),
-            (!dateRange.latest || finalDate > dateRange.latest) && (dateRange.latest = finalDate),
-            processedCount++;
+        personData[person][finalDate] += countInfo.count;
+        
+        if (personData[person][finalDate] > 999) {
+            log("warn", `⚠️ ACCUMULATION WARNING: ${person} on ${finalDate}: was ${previousCount}, added ${countInfo.count}, now ${personData[person][finalDate]}`);
+        }
+        
+        // Track date range
+        if (!dateRange.earliest || finalDate < dateRange.earliest) {
+            dateRange.earliest = finalDate;
+        }
+        if (!dateRange.latest || finalDate > dateRange.latest) {
+            dateRange.latest = finalDate;
+        }
+        
+        processedCount++;
     });
     
-    if (policeStagedCount > 0) {
-        await (async function savePoliceStagingData(data) {
-            try {
-                await new Promise((resolve, reject) => {
-                    browserAPI.storage.local.set({ [POLICE_STAGING_KEY]: data }, () => {
-                        browserAPI.runtime.lastError ? reject(browserAPI.runtime.lastError) : resolve();
-                    });
-                });
-                log("info", `💾 Saved police staging data: ${Object.keys(data).length} persons`);
-            } catch (error) {
-                log("error", "Failed to save police staging data:", error);
-            }
-        })(policeStagingData);
-    }
+    // Log summary
+    log("info", `📊 Processing complete: ${processedCount} rows processed, ${skippedCount} skipped`);
+    log("info", `📅 Date range: ${dateRange.earliest || "N/A"} to ${dateRange.latest || "N/A"}`);
+    log("info", `👥 ${Object.keys(personData).length} unique persons found`);
+    log("info", `📆 Weeks covered: ${Array.from(weekYearSet).sort().join(", ")}`);
     
-    if (isPoliceFolder && Object.keys(policeStagingData).length > 0) {
-        log("info", `🚔 Processing Police folder - merging ${Object.keys(policeStagingData).length} staged persons`);
-        let mergedCount = 0;
-        Object.entries(policeStagingData).forEach(([person, dates]) => {
-            personData[person] || (personData[person] = {}),
-                Object.entries(dates).forEach(([date, count]) => {
-                    personData[person][date] || (personData[person][date] = 0),
-                        (personData[person][date] += count),
-                        mergedCount++,
-                        log("info", `🚔 Merged: ${person} on ${date} += ${count} (now ${personData[person][date]})`);
-                });
-        });
-        log("info", `🚔 Merged ${mergedCount} Police entries into current folder`);
-        await (async function clearPoliceStagingData() {
-            try {
-                await new Promise((resolve, reject) => {
-                    browserAPI.storage.local.remove(POLICE_STAGING_KEY, () => {
-                        browserAPI.runtime.lastError ? reject(browserAPI.runtime.lastError) : resolve();
-                    });
-                });
-                log("info", "🧹 Cleared police staging data");
-            } catch (error) {
-                log("error", "Failed to clear police staging data:", error);
-            }
-        })();
-    }
-    
-    return (
-        log("info", `📊 Processing complete: ${processedCount} rows processed, ${skippedCount} skipped`),
-        policeStagedCount > 0 && log("info", `🚔 Police data staged: ${policeStagedCount} entries`),
-        log("info", `📅 Date range: ${dateRange.earliest || "N/A"} to ${dateRange.latest || "N/A"}`),
-        log("info", `👥 ${Object.keys(personData).length} unique persons found`),
-        log("info", `📆 Weeks covered: ${Array.from(weekYearSet).sort().join(", ")}`),
-        {
-            personData: personData,
-            dateRange: dateRange,
-            processedCount: processedCount,
-            skippedCount: skippedCount,
-            weeksCovered: Array.from(weekYearSet).sort(),
-            policeStagedCount: policeStagedCount,
-        }
-    );
+    return {
+        personData: personData,
+        dateRange: dateRange,
+        processedCount: processedCount,
+        skippedCount: skippedCount,
+        weeksCovered: Array.from(weekYearSet).sort()
+    };
 }
 
 async function saveRunInfo(folderName, runInfo) {
@@ -524,14 +448,12 @@ window.downloadScriptBConsolidatedReport = function downloadConsolidatedReport()
                     lines.push("--- EXTRACTED ROWS ---"),
                     lines.push("");
                 report.rows.forEach((row) => {
-                    lines.push(`Row ${row.rowIndex}:`),
-                        lines.push(`  Date: ${row.dateText}`),
-                        lines.push(`  Name: ${row.nameText}`),
-                        lines.push(`  Count: ${row.countText} → Extracted: ${row.count}`),
-                        row.policeCount &&
-                            lines.push(`  Police Count: ${row.policeCount} (staged for Police folder)`),
-                        lines.push(`  Person: ${row.person}`),
-                        lines.push("");
+                    lines.push(`Row ${row.rowIndex}:`);
+                    lines.push(`  Date: ${row.dateText}`);
+                    lines.push(`  Name: ${row.nameText}`);
+                    lines.push(`  Count: ${row.countText} → Extracted: ${row.count}`);
+                    lines.push(`  Person: ${row.person}`);
+                    lines.push("");
                 });
                 lines.push("--- PERSON SUMMARY ---"),
                     lines.push("");
@@ -579,7 +501,16 @@ log("info", "📜 Script B loaded");
             const DEFAULT_CONFIG = {
                 version: "1.0",
                 folderNameSelectors: ["div.MuiBox-root.css-s8z3ro > h1", 'div[class*="MuiBox"] > h1', ".page-header h1"],
-                totalCountSelectors: ["div.MuiStack-root.css-4hc9uy > div > dl > div:nth-child(1) > dd", 'div[class*="MuiStack"] > div > dl > div:nth-child(1) > dd', "dl > div:nth-child(1) > dd"],
+                totalCountSelectors: [
+                    // Most specific selector based on full page structure
+                    "div.navigationLayoutComponent__content.layout__body div.mastheadLayoutComponent dl > div:nth-child(1) > dd",
+                    // MUI Stack based selectors with class wildcard
+                    'div[class*="MuiStack"] > div > dl > div:nth-child(1) > dd',
+                    // Original selectors
+                    "div.MuiStack-root.css-4hc9uy > div > dl > div:nth-child(1) > dd",
+                    // Generic fallback
+                    "dl > div:nth-child(1) > dd"
+                ],
                 tableSelector: "div.queryResultComponent__scrollContainer > table",
                 scrollContainerSelector: "div.queryResultComponent__scrollContainer",
                 rowSelector: "div.queryResultComponent__scrollContainer > table > tbody > tr",
@@ -651,10 +582,16 @@ log("info", "📜 Script B loaded");
         const expectedTotal = (function getTotalCount() {
             const selectors = SELECTOR_CONFIG
                 ? SELECTOR_CONFIG.totalCountSelectors
-                : ["div.MuiStack-root.css-4hc9uy > div > dl > div:nth-child(1) > dd"];
+                : [
+                    "div.navigationLayoutComponent__content.layout__body div.mastheadLayoutComponent dl > div:nth-child(1) > dd",
+                    'div[class*="MuiStack"] > div > dl > div:nth-child(1) > dd',
+                    "dl > div:nth-child(1) > dd"
+                ];
+            log("debug", `🔍 Trying ${selectors.length} selectors for total count...`);
             for (const selector of selectors)
                 try {
                     const element = document.querySelector(selector);
+                    log("debug", `🔍 Selector "${selector.substring(0, 50)}..." - Element found: ${!!element}`);
                     if (element && element.textContent.trim()) {
                         const match = element.textContent.trim().match(/(\d+)/);
                         if (match) {
@@ -668,7 +605,7 @@ log("info", "📜 Script B loaded");
                 } catch (error) {
                     log("warn", `⚠️ Invalid selector for total count: ${selector}`, error);
                 }
-            return log("warn", "⚠️ Could not extract total count from page"), null;
+            return log("warn", "⚠️ Could not extract total count from page - scrolling will continue until stable"), null;
         })();
         
         let tableStatus = isDataTablePresent(),
@@ -771,7 +708,7 @@ log("info", "📜 Script B loaded");
                                 void resolve(!0)
                             );
                     } else stableCount = 0;
-                    if (((lastScrollTop = currentScrollTop), attempts >= 100))
+                    if (((lastScrollTop = currentScrollTop), attempts >= 1000))
                         return (
                             log("warn", `⏱️ Max scroll attempts reached. ${currentCount} rows loaded.`),
                             clearInterval(scrollInterval),
@@ -878,7 +815,6 @@ log("info", "📜 Script B loaded");
                 extractedRows: extractedRows.length,
                 processedRows: processed.processedCount,
                 skippedRows: processed.skippedCount,
-                policeStagedCount: processed.policeStagedCount || 0,
                 uniquePersons: Object.keys(processed.personData).length,
                 dateRange: processed.dateRange,
                 weeksCovered: processed.weeksCovered,
@@ -890,8 +826,7 @@ log("info", "📜 Script B loaded");
                         nameText: row.nameText,
                         countText: row.countText,
                         person: extractPersonIdentifier(row.nameText),
-                        count: countInfo.count,
-                        policeCount: countInfo.policeCount,
+                        count: countInfo.count
                     };
                 }),
                 personSummary: Object.entries(processed.personData).map(([person, dates]) => ({
@@ -939,14 +874,42 @@ log("info", "📜 Script B loaded");
                     weeksCovered: processed.weeksCovered,
                     rows: extractedRows.map((row) => {
                         const countInfo = extractCountFromText(row.countText);
+                        // Parse date for reliable storage
+                        let isoDate = null;
+                        const dateStr = (row.dateText || '').replace(/\s*/g, "");
+                        const textMonthMatch = dateStr.match(/(\d{1,2})([A-Za-z]+)(\d{4})/i);
+                        if (textMonthMatch) {
+                            const day = textMonthMatch[1].padStart(2, "0");
+                            const monthText = textMonthMatch[2].toLowerCase();
+                            const year = textMonthMatch[3];
+                            const monthMap = {
+                                jan: "01", january: "01", feb: "02", february: "02", mar: "03", march: "03",
+                                apr: "04", april: "04", may: "05", jun: "06", june: "06", jul: "07", july: "07",
+                                aug: "08", august: "08", sep: "09", sept: "09", september: "09", oct: "10",
+                                october: "10", nov: "11", november: "11", dec: "12", december: "12"
+                            };
+                            const month = monthMap[monthText];
+                            if (month) {
+                                isoDate = `${year}-${month}-${day}`;
+                            }
+                        } else {
+                            const parts = dateStr.split("/");
+                            if (parts.length === 3) {
+                                const day = parts[0].padStart(2, "0");
+                                const month = parts[1].padStart(2, "0");
+                                let year = parts[2];
+                                if (year.length === 2) year = "20" + year;
+                                isoDate = `${year}-${month}-${day}`;
+                            }
+                        }
                         return {
                             rowIndex: row.rowIndex,
                             dateText: row.dateText,
+                            isoDate: isoDate,  // Pre-parsed ISO date for reliable storage
                             nameText: row.nameText,
                             countText: row.countText,
                             person: extractPersonIdentifier(row.nameText),
                             count: countInfo.count,
-                            policeCount: countInfo.policeCount,
                             rule: countInfo.rule
                         };
                     }),

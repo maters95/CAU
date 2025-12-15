@@ -919,7 +919,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const excludedPeople = getExcludedItems('person');
     const excludedFolders = getExcludedItems('folder');
     
-    // Get optional settings
+    // Get optional settings for report sections
+    const includeCoverPage = document.getElementById('includeCoverPage')?.checked ?? true;
+    const includePerformerSummaries = document.getElementById('includePerformerSummaries')?.checked ?? true;
+    const includeDailyPerformance = document.getElementById('includeDailyPerformance')?.checked ?? true;
+    const includeWeeklyPerformance = document.getElementById('includeWeeklyPerformance')?.checked ?? true;
+    const includeMonthlyPerformance = document.getElementById('includeMonthlyPerformance')?.checked ?? true;
+    const includeTeamMonthlyTotals = document.getElementById('includeTeamMonthlyTotals')?.checked ?? true;
     const includeMonthlyBreakdowns = document.getElementById('includeMonthlyBreakdowns')?.checked ?? true;
     
     // Filter to get only included items
@@ -945,6 +951,12 @@ window.addEventListener('DOMContentLoaded', () => {
         selectedPersons: selPersons,
         selectedFolders: selFolders,
         isYearly: true,
+        includeCoverPage: includeCoverPage,
+        includePerformerSummaries: includePerformerSummaries,
+        includeDailyPerformance: includeDailyPerformance,
+        includeWeeklyPerformance: includeWeeklyPerformance,
+        includeMonthlyPerformance: includeMonthlyPerformance,
+        includeTeamMonthlyTotals: includeTeamMonthlyTotals,
         includeMonthlyBreakdowns: includeMonthlyBreakdowns
       };
       
@@ -1232,6 +1244,14 @@ window.addEventListener('DOMContentLoaded', () => {
         console.log('Reports: Data refresh requested, reloading...');
         updateStatus('Data refresh requested. Updating...');
         loadData();
+      });
+      
+      // Reload data when page becomes visible (e.g., switching tabs)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          console.log('Reports: Page became visible, reloading data...');
+          loadData();
+        }
       });
     }
   }

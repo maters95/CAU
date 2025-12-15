@@ -100,25 +100,13 @@ export function basicNormalize(folderName) {
 export function getDisplayNameForKey(rawFolderKey) {
     if (!rawFolderKey) return 'Unknown Folder';
     let nameToCheck = String(rawFolderKey).trim();
-    let originalNameForLog = nameToCheck;
     const yearPrefixMatch = nameToCheck.match(/^(\d{4})\s+(.*)$/);
     if (yearPrefixMatch && yearPrefixMatch[2]) {
         nameToCheck = yearPrefixMatch[2];
     }
     const normalizedKey = basicNormalize(nameToCheck);
-    console.log(`Utils: getDisplayNameForKey Input: "${originalNameForLog}"`);
-    if (originalNameForLog !== nameToCheck) {
-        console.log(`Utils: Stripped Year, Name to Check: "${nameToCheck}"`);
-    }
-    console.log(`Utils: Normalized Key for Lookup: "${normalizedKey}"`);
     const mappedValue = FOLDER_NAME_MAPPINGS[normalizedKey];
-    const result = mappedValue || normalizedKey;
-    if (mappedValue) {
-        console.log(`Utils: Mapping Found! Key: "${normalizedKey}" -> Value: "${mappedValue}"`);
-    } else {
-        console.log(`Utils: No mapping found for key: "${normalizedKey}". Using normalized key as display name.`);
-    }
-    console.log(`Utils: getDisplayNameForKey Result: "${result}"`);
+    const result = mappedValue || nameToCheck; // Use original capitalization if no mapping found
     return result;
 }
 
